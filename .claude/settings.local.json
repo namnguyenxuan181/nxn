@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(bash *)",
+      "Bash(git -C /Users/namnx/Documents/project/nxn add models/interest_rate.py)",
+      "Bash(git -C /Users/namnx/Documents/project/nxn commit -m \"style: add trailing newline to interest_rate.py\")",
+      "Bash(rtk ls *)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(rtk git *)",
+      "Bash(git commit *)",
+      "Bash(rtk read *)",
+      "Bash(rtk grep *)",
+      "Bash(python3 *)"
+    ]
+  }
+}
