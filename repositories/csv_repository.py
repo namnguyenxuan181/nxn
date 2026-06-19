@@ -22,9 +22,9 @@ class CSVRepository(BaseRepository):
             for r in records:
                 writer.writerow([
                     r.date, r.bank, r.channel,
-                    "" if r.rate_1m  is None else r.rate_1m,
-                    "" if r.rate_3m  is None else r.rate_3m,
-                    "" if r.rate_6m  is None else r.rate_6m,
+                    "" if r.rate_1m is None else r.rate_1m,
+                    "" if r.rate_3m is None else r.rate_3m,
+                    "" if r.rate_6m is None else r.rate_6m,
                     "" if r.rate_12m is None else r.rate_12m,
                     "" if r.rate_18m is None else r.rate_18m,
                     "" if r.rate_24m is None else r.rate_24m,
