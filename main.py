@@ -1,5 +1,4 @@
 import os
-import sys
 
 from runner import CrawlRunner
 from scrapers.techcombank import TechcombankScraper
