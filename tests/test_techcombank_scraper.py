@@ -16,14 +16,6 @@ def mock_response():
     return mock
 
 
-@pytest.fixture
-def scraper(mock_response):
-    with patch("scrapers.techcombank.requests.get", return_value=mock_response):
-        s = TechcombankScraper()
-        s._html = mock_response.text
-        return s
-
-
 def test_scrape_returns_list(mock_response):
     with patch("scrapers.techcombank.requests.get", return_value=mock_response):
         records = TechcombankScraper().scrape()
@@ -75,3 +67,9 @@ def test_multiple_banks_parsed(mock_response):
     counter_banks = [r.bank for r in records if r.channel == "counter"]
     assert "Techcombank" in counter_banks
     assert "Vietcombank" in counter_banks
+
+
+def test_scrape_calls_raise_for_status(mock_response):
+    with patch("scrapers.techcombank.requests.get", return_value=mock_response):
+        TechcombankScraper().scrape()
+    mock_response.raise_for_status.assert_called_once()
