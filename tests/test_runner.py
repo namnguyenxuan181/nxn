@@ -1,4 +1,4 @@
-from unittest.mock import MagicMock, call
+from unittest.mock import MagicMock
 from runner import CrawlRunner
 from models.interest_rate import InterestRate
 
