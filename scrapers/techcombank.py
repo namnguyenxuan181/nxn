@@ -18,15 +18,17 @@ _HEADERS = {
 }
 
 
+_SKIP_BANK_NAMES = {"Ngân hàng", ""}
+
+
 def _parse_rate(text: str) -> Optional[float]:
     text = text.strip()
     if not text or text in ("-", "—", "N/A", "n/a"):
         return None
-    text = re.sub(r"[%/\s]|năm", "", text)
-    try:
-        return float(text)
-    except ValueError:
-        return None
+    match = re.search(r"\d+(?:\.\d+)?", text)
+    if match:
+        return float(match.group())
+    return None
 
 
 class TechcombankScraper(BaseScraper):
@@ -37,11 +39,16 @@ class TechcombankScraper(BaseScraper):
 
     def _parse(self, html: str) -> list[InterestRate]:
         soup = BeautifulSoup(html, "html.parser")
-        tables = soup.find_all("table")
+        # Select only tables whose first cell is the 'Ngân hàng' column header
+        rate_tables = [
+            t for t in soup.find_all("table")
+            if t.find("tr") and t.find("tr").find(["td", "th"])
+            and t.find("tr").find(["td", "th"]).get_text(strip=True) == "Ngân hàng"
+        ]
         today = date.today().strftime("%Y-%m-%d")
         records: list[InterestRate] = []
         channels = ["counter", "online"]
-        for table, channel in zip(tables[:2], channels):
+        for table, channel in zip(rate_tables[:2], channels):
             records.extend(self._parse_table(table, channel, today))
         return records
 
@@ -55,7 +62,7 @@ class TechcombankScraper(BaseScraper):
             if cells[0].name == "th":
                 continue
             bank = cells[0].get_text(strip=True)
-            if not bank:
+            if bank in _SKIP_BANK_NAMES:
                 continue
             records.append(InterestRate(
                 date=today,
