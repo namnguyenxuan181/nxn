@@ -51,6 +51,9 @@ class TechcombankScraper(BaseScraper):
             cells = row.find_all(["td", "th"])
             if len(cells) < 8:
                 continue
+            # Skip header rows that may appear inside <tbody> (no <thead>) on the live page
+            if cells[0].name == "th":
+                continue
             bank = cells[0].get_text(strip=True)
             if not bank:
                 continue

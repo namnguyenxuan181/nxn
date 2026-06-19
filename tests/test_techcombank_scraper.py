@@ -73,3 +73,52 @@ def test_scrape_calls_raise_for_status(mock_response):
     with patch("scrapers.techcombank.requests.get", return_value=mock_response):
         TechcombankScraper().scrape()
     mock_response.raise_for_status.assert_called_once()
+
+
+# Regression: live page may render header row as <th> inside <tbody> (no <thead>)
+_NO_THEAD_HTML = """<html><body>
+<table>
+  <tbody>
+    <tr>
+      <th>Ngân hàng</th><th>1 tháng</th><th>3 tháng</th>
+      <th>6 tháng</th><th>12 tháng</th><th>18 tháng</th>
+      <th>24 tháng</th><th>36 tháng</th>
+    </tr>
+    <tr>
+      <td>Techcombank</td><td>3.5%/năm</td><td>4.0%/năm</td>
+      <td>5.0%/năm</td><td>5.5%/năm</td><td>-</td>
+      <td>5.8%/năm</td><td>6.0%/năm</td>
+    </tr>
+  </tbody>
+</table>
+<table>
+  <tbody>
+    <tr>
+      <th>Ngân hàng</th><th>1 tháng</th><th>3 tháng</th>
+      <th>6 tháng</th><th>12 tháng</th><th>18 tháng</th>
+      <th>24 tháng</th><th>36 tháng</th>
+    </tr>
+    <tr>
+      <td>Techcombank</td><td>3.7%/năm</td><td>4.2%/năm</td>
+      <td>5.2%/năm</td><td>5.7%/năm</td><td>-</td>
+      <td>6.0%/năm</td><td>6.2%/năm</td>
+    </tr>
+  </tbody>
+</table>
+</body></html>"""
+
+
+def test_header_row_in_tbody_is_skipped():
+    """Header <th> rows inside <tbody> must not appear in output as bank records."""
+    scraper = TechcombankScraper.__new__(TechcombankScraper)
+    records = scraper._parse(_NO_THEAD_HTML)
+    bank_names = [r.bank for r in records]
+    assert "Ngân hàng" not in bank_names
+    assert "Techcombank" in bank_names
+
+
+def test_header_row_in_tbody_exact_record_count():
+    """One data row per table × 2 tables = 2 records (no phantom header record)."""
+    scraper = TechcombankScraper.__new__(TechcombankScraper)
+    records = scraper._parse(_NO_THEAD_HTML)
+    assert len(records) == 2
