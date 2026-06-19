@@ -11,7 +11,12 @@
       "Bash(git commit *)",
       "Bash(rtk read *)",
       "Bash(rtk grep *)",
-      "Bash(python3 *)"
+      "Bash(python3 *)",
+      "Bash(git rm *)",
+      "WebFetch(domain:fireant.vn)",
+      "Bash(rtk curl *)",
+      "Bash(curl -s -I https://restv2.fireant.vn/symbols/top -H 'Accept: application/json' -A Mozilla/5.0)",
+      "Bash(curl -s https://restv2.fireant.vn/symbols/top -H 'Accept: application/json' -A Mozilla/5.0)"
     ]
   }
 }
