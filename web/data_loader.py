@@ -8,7 +8,7 @@ import streamlit as st
 DATA_DIR = os.path.join(os.path.dirname(__file__), "..", "data")
 
 
-@st.cache_data
+@st.cache_data(ttl=300)
 def available_dates(domain: str) -> list:
     pattern = os.path.join(DATA_DIR, domain, f"{domain}_*.csv")
     files = glob.glob(pattern)

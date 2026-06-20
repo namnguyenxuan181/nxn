@@ -30,8 +30,13 @@ with tab1:
         })
 
         rate_cols = ["1m %", "3m %", "6m %", "12m %", "18m %", "24m %", "36m %"]
+        col_config = {
+            col: st.column_config.ProgressColumn(col, min_value=0, max_value=10, format="%.2f %%")
+            for col in rate_cols
+        }
         st.dataframe(
-            display.style.background_gradient(subset=rate_cols, cmap="RdYlGn"),
+            display,
+            column_config=col_config,
             use_container_width=True,
             hide_index=True,
         )
