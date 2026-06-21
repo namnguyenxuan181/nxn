@@ -104,21 +104,19 @@ with tab3:
         fetch_btn = st.button("🔄 Fetch & Analyze", key="news_fetch")
 
     if fetch_btn:
-        if not os.environ.get("ANTHROPIC_API_KEY"):
-            st.error("Set ANTHROPIC_API_KEY environment variable to enable AI analysis.")
-        else:
-            with st.spinner("Fetching and analyzing news…"):
-                from news.repositories.json_repo import JSONNewsRepository
-                from news.runner import NewsRunner
-                from news.scrapers.cafef import CafefScraper
-                from news.scrapers.vnexpress import VnExpressScraper
-                from news.scrapers.vietstock import VietstockScraper
-                NewsRunner(
-                    [VnExpressScraper(), CafefScraper(), VietstockScraper()],
-                    JSONNewsRepository(data_dir=os.path.join(DATA_DIR, "news")),
-                ).run(target_date=news_date)
-                st.cache_data.clear()
-                st.rerun()
+        label = "Fetching and analyzing news…" if os.environ.get("ANTHROPIC_API_KEY") else "Fetching news (no API key — summary/sentiment will be empty)…"
+        with st.spinner(label):
+            from news.repositories.json_repo import JSONNewsRepository
+            from news.runner import NewsRunner
+            from news.scrapers.cafef import CafefScraper
+            from news.scrapers.vnexpress import VnExpressScraper
+            from news.scrapers.vietstock import VietstockScraper
+            NewsRunner(
+                [VnExpressScraper(), CafefScraper(), VietstockScraper()],
+                JSONNewsRepository(data_dir=os.path.join(DATA_DIR, "news")),
+            ).run(target_date=news_date)
+            st.cache_data.clear()
+            st.rerun()
 
     news_dates = available_news_dates()
     if news_dates:
@@ -134,25 +132,33 @@ with tab3:
                 return any(kw.lower() in text for kw in KEYWORDS)
 
             df["matched"] = df.apply(_matches, axis=1)
-            df["📊"] = df["sentiment"].map({"positive": "🟢", "negative": "🔴", "neutral": "⚪"})
-            df["Time"] = pd.to_datetime(df["published_at"], utc=True, errors="coerce") \
-                .dt.tz_convert("Asia/Ho_Chi_Minh").dt.strftime("%H:%M")
+            df["sentiment_icon"] = df["sentiment"].map({"positive": "🟢", "negative": "🔴", "neutral": "⚪"}).fillna("⚪")
+            df["datetime"] = pd.to_datetime(df["published_at"], utc=True, errors="coerce") \
+                .dt.tz_convert("Asia/Ho_Chi_Minh").dt.strftime("%Y-%m-%d %H:%M")
             df = df.sort_values(["matched", "published_at"], ascending=[False, False])
 
-            display = df[["source", "title", "url", "📊", "Time"]].rename(columns={
-                "source": "Source", "title": "Title", "url": "URL",
-            })
-
-            def _highlight(row: pd.Series) -> list:
-                if df.loc[row.name, "matched"]:
-                    return ["background-color: #fff9c4"] * len(row)
-                return [""] * len(row)
-
-            st.dataframe(
-                display.style.apply(_highlight, axis=1),
-                column_config={"URL": st.column_config.LinkColumn("URL", display_text="🔗")},
-                use_container_width=True,
-                hide_index=True,
+            rows_html = ""
+            for _, row in df.iterrows():
+                bg = "background-color:#fff9c4;" if row["matched"] else ""
+                title_html = f'<a href="{row["url"]}" target="_blank">{row["title"]}</a>'
+                rows_html += (
+                    f'<tr style="{bg}">'
+                    f'<td style="white-space:nowrap;padding:4px 8px;">{row["source"]}</td>'
+                    f'<td style="padding:4px 8px;">{title_html}</td>'
+                    f'<td style="text-align:center;padding:4px 8px;">{row["sentiment_icon"]}</td>'
+                    f'<td style="white-space:nowrap;padding:4px 8px;">{row["datetime"]}</td>'
+                    f'</tr>'
+                )
+            st.html(
+                f'<table style="width:100%;border-collapse:collapse;font-size:14px;">'
+                f'<thead><tr style="border-bottom:2px solid #ddd;">'
+                f'<th style="text-align:left;padding:4px 8px;">Source</th>'
+                f'<th style="text-align:left;padding:4px 8px;">Title</th>'
+                f'<th style="padding:4px 8px;">📊</th>'
+                f'<th style="text-align:left;padding:4px 8px;">Time</th>'
+                f'</tr></thead>'
+                f'<tbody>{rows_html}</tbody>'
+                f'</table>'
             )
 
             matched = df[df["matched"]]

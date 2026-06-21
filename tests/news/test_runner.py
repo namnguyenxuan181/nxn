@@ -1,6 +1,9 @@
 from unittest.mock import MagicMock, patch
+import pytest
 from news.model import NewsArticle
 from news.runner import NewsRunner
+
+_WITH_KEY = {"ANTHROPIC_API_KEY": "test-key"}
 
 
 def _make_article(url: str, source: str = "vnexpress") -> NewsArticle:
@@ -19,7 +22,8 @@ def test_runner_scrapes_all_sources():
     repo.load.return_value = []
 
     with patch("news.runner.analyze_article", return_value=("summary", "positive")):
-        NewsRunner([scraper_a, scraper_b], repo).run(target_date="2026-06-21")
+        with patch.dict("os.environ", _WITH_KEY):
+            NewsRunner([scraper_a, scraper_b], repo).run(target_date="2026-06-21")
 
     scraper_a.scrape.assert_called_once()
     scraper_b.scrape.assert_called_once()
@@ -36,7 +40,8 @@ def test_runner_deduplicates_by_url():
     repo.load.return_value = existing
 
     with patch("news.runner.analyze_article", return_value=("s", "neutral")) as mock_analyze:
-        NewsRunner([scraper], repo).run(target_date="2026-06-21")
+        with patch.dict("os.environ", _WITH_KEY):
+            NewsRunner([scraper], repo).run(target_date="2026-06-21")
 
     assert mock_analyze.call_count == 1
 
@@ -49,7 +54,8 @@ def test_runner_saves_merged_results():
     repo.load.return_value = existing
 
     with patch("news.runner.analyze_article", return_value=("s", "positive")):
-        NewsRunner([scraper], repo).run(target_date="2026-06-21")
+        with patch.dict("os.environ", _WITH_KEY):
+            NewsRunner([scraper], repo).run(target_date="2026-06-21")
 
     saved_articles = repo.save.call_args[0][0]
     assert len(saved_articles) == 2
@@ -62,6 +68,23 @@ def test_runner_save_called_once():
     repo.load.return_value = []
 
     with patch("news.runner.analyze_article", return_value=("s", "neutral")):
-        NewsRunner([scraper], repo).run(target_date="2026-06-21")
+        with patch.dict("os.environ", _WITH_KEY):
+            NewsRunner([scraper], repo).run(target_date="2026-06-21")
 
     repo.save.assert_called_once()
+
+
+def test_runner_skips_analysis_without_api_key():
+    scraper = MagicMock()
+    scraper.scrape.return_value = [_make_article("https://a.com/1")]
+    repo = MagicMock()
+    repo.load.return_value = []
+
+    with patch("news.runner.analyze_article") as mock_analyze:
+        with patch.dict("os.environ", {}, clear=True):
+            NewsRunner([scraper], repo).run(target_date="2026-06-21")
+
+    mock_analyze.assert_not_called()
+    saved = repo.save.call_args[0][0]
+    assert saved[0].summary == ""
+    assert saved[0].sentiment == "neutral"

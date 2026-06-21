@@ -1,3 +1,4 @@
+import os
 from concurrent.futures import ThreadPoolExecutor
 from datetime import date
 
@@ -27,10 +28,13 @@ class NewsRunner:
         existing_urls = {a.url for a in existing}
         new_articles = [a for a in raw if a.url not in existing_urls]
 
+        has_key = bool(os.environ.get("ANTHROPIC_API_KEY"))
+
         def _analyze(article: NewsArticle) -> NewsArticle:
-            summary, sentiment = analyze_article(article.title, article.description)
-            article.summary = summary
-            article.sentiment = sentiment
+            if has_key:
+                summary, sentiment = analyze_article(article.title, article.description)
+                article.summary = summary
+                article.sentiment = sentiment
             return article
 
         with ThreadPoolExecutor(max_workers=self._max_workers) as executor:
