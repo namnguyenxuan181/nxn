@@ -21,6 +21,17 @@ def main():
         StockCSVRepository(data_dir=os.path.join(DATA_DIR, "stock")),
     ).run()
 
+    if os.environ.get("ANTHROPIC_API_KEY"):
+        from news.repositories.json_repo import JSONNewsRepository
+        from news.runner import NewsRunner
+        from news.scrapers.cafef import CafefScraper
+        from news.scrapers.vnexpress import VnExpressScraper
+        from news.scrapers.vietstock import VietstockScraper
+        NewsRunner(
+            [VnExpressScraper(), CafefScraper(), VietstockScraper()],
+            JSONNewsRepository(data_dir=os.path.join(DATA_DIR, "news")),
+        ).run()
+
 
 if __name__ == "__main__":
     main()
