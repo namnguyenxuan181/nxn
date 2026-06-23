@@ -8,7 +8,9 @@ from web.data_loader import (
     available_dates,
     available_news_dates,
     load_interest,
+    load_intraday_prices,
     load_news,
+    load_portfolio,
     load_stock,
 )
 
@@ -18,7 +20,7 @@ DATA_DIR = os.path.join(BASE_DIR, "data")
 st.set_page_config(page_title="NXN Dashboard", layout="wide")
 st.title("📊 NXN Dashboard")
 
-tab1, tab2, tab3 = st.tabs(["💰 Interest Rates", "📈 Stock Prices", "📰 News"])
+tab1, tab2, tab3, tab4 = st.tabs(["💰 Interest Rates", "📈 Stock Prices", "📰 News", "💼 Portfolio"])
 
 # ── Interest Rates ────────────────────────────────────────────────────────────
 with tab1:
@@ -182,3 +184,96 @@ with tab3:
                     with st.expander(f"{icon} {row['title']}"):
                         st.write(row["summary"] if row["summary"] else "_No summary available._")
                         st.markdown(f"[Read full article]({row['url']})")
+
+# ── Portfolio ─────────────────────────────────────────────────────────────────
+with tab4:
+    portfolio = load_portfolio()
+    watchlist = portfolio["watchlist"]
+    holdings = portfolio["holdings"]
+    all_symbols = list({sym for sym in watchlist} | {h["symbol"] for h in holdings})
+
+    if not all_symbols:
+        st.info("Create portfolio.json to track your positions. See portfolio.json.example.")
+    else:
+        stock_dates = available_dates("stock")
+        if not stock_dates:
+            st.info("No stock data yet. Run main.py first.")
+        else:
+            today_date = stock_dates[0]
+            df_today = load_stock(today_date)
+            df_yest = load_stock(stock_dates[1]) if len(stock_dates) > 1 else pd.DataFrame(columns=["symbol", "close"])
+
+            intraday = load_intraday_prices(tuple(all_symbols))
+
+            eod_map = dict(zip(df_today["symbol"], df_today["close"]))
+            yest_map = dict(zip(df_yest["symbol"], df_yest["close"])) if not df_yest.empty else {}
+            vol_map = dict(zip(df_today["symbol"], df_today["volume"]))
+
+            def _current_price(sym):
+                if sym in intraday:
+                    return intraday[sym], "🟡 live"
+                return eod_map.get(sym), "📅 T-1"
+
+            # ── Watchlist ──
+            st.subheader("Watchlist")
+            wl_rows = []
+            for sym in sorted(all_symbols):
+                price, source = _current_price(sym)
+                yest = yest_map.get(sym)
+                change = round((price - yest) / yest * 100, 2) if price and yest else None
+                wl_rows.append({
+                    "Symbol": sym,
+                    "Price": price,
+                    "Source": source,
+                    "Change %": change,
+                    "Volume": vol_map.get(sym),
+                })
+            wl_df = pd.DataFrame(wl_rows)
+
+            def _highlight_change(row):
+                if row["Change %"] is not None and abs(row["Change %"]) >= 3:
+                    return ["background-color:#fff9c4"] * len(row)
+                return [""] * len(row)
+
+            st.dataframe(
+                wl_df.style.apply(_highlight_change, axis=1),
+                use_container_width=True,
+                hide_index=True,
+            )
+
+            # ── Holdings ──
+            if holdings:
+                st.subheader("Holdings")
+                h_rows = []
+                total_invested = 0
+                total_current = 0
+                for h in holdings:
+                    sym = h["symbol"]
+                    qty = h["quantity"]
+                    buy_p = h["buy_price"]
+                    price, _ = _current_price(sym)
+                    if price:
+                        pnl_vnd = (price - buy_p) * qty
+                        pnl_pct = round((price - buy_p) / buy_p * 100, 2)
+                        total_invested += buy_p * qty
+                        total_current += price * qty
+                    else:
+                        pnl_vnd = None
+                        pnl_pct = None
+                    h_rows.append({
+                        "Symbol": sym,
+                        "Qty": qty,
+                        "Buy Price": buy_p,
+                        "Current Price": price,
+                        "P&L (VND)": pnl_vnd,
+                        "P&L %": pnl_pct,
+                    })
+                st.dataframe(pd.DataFrame(h_rows), use_container_width=True, hide_index=True)
+
+                if total_invested:
+                    total_pnl = total_current - total_invested
+                    c1, c2, c3 = st.columns(3)
+                    c1.metric("Total Invested", f"₫{total_invested:,.0f}")
+                    c2.metric("Current Value", f"₫{total_current:,.0f}")
+                    c3.metric("Total P&L", f"₫{total_pnl:,.0f}",
+                              delta=f"{total_pnl / total_invested * 100:.2f}%")
