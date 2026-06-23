@@ -8,26 +8,13 @@ import requests
 
 from stock.model import StockPrice
 from stock.scrapers.base import BaseStockScraper
+from stock.scrapers._common import _OHLC_URL, _HEADERS, _to_vnd
 
-_OHLC_URL = "https://services.entrade.com.vn/chart-api/v2/ohlcs/stock"
-# Offline stock listing CSV from vnstock GitHub (updated periodically)
 _LISTING_URL = (
     "https://raw.githubusercontent.com/thinh-vu/vnstock/beta/data/"
     "listing_companies_enhanced-2023.csv"
 )
-_HEADERS = {
-    "User-Agent": (
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-        "AppleWebKit/537.36 (KHTML, like Gecko) "
-        "Chrome/124.0.0.0 Safari/537.36"
-    )
-}
 _MAX_WORKERS = 20
-
-
-def _to_vnd(raw: float) -> int:
-    # Entrade API returns price in thousands of VND; convert to full VND
-    return int(round(raw * 1000))
 
 
 def _fetch_ohlc(symbol: str, target_date: str) -> Optional[StockPrice]:
