@@ -1,7 +1,7 @@
 import os
 import pytest
 from unittest.mock import patch, MagicMock
-from interest.scrapers.techcombank import TechcombankScraper
+from interest.scrapers.multi_rate import MultiRateScraper
 
 FIXTURE_PATH = os.path.join(os.path.dirname(__file__), "..", "fixtures", "techcombank_sample.html")
 
@@ -17,21 +17,21 @@ def mock_response():
 
 
 def test_scrape_returns_list(mock_response):
-    with patch("interest.scrapers.techcombank.requests.get", return_value=mock_response):
-        records = TechcombankScraper().scrape()
+    with patch("interest.scrapers.multi_rate.requests.get", return_value=mock_response):
+        records = MultiRateScraper().scrape()
     assert isinstance(records, list)
 
 
 def test_scrape_returns_both_channels(mock_response):
-    with patch("interest.scrapers.techcombank.requests.get", return_value=mock_response):
-        records = TechcombankScraper().scrape()
+    with patch("interest.scrapers.multi_rate.requests.get", return_value=mock_response):
+        records = MultiRateScraper().scrape()
     channels = {r.channel for r in records}
     assert channels == {"counter", "online"}
 
 
 def test_counter_techcombank_rates(mock_response):
-    with patch("interest.scrapers.techcombank.requests.get", return_value=mock_response):
-        records = TechcombankScraper().scrape()
+    with patch("interest.scrapers.multi_rate.requests.get", return_value=mock_response):
+        records = MultiRateScraper().scrape()
     tcb_counter = next(r for r in records if r.bank == "Techcombank" and r.channel == "counter")
     assert tcb_counter.rate_1m == 3.5
     assert tcb_counter.rate_3m == 4.0
@@ -40,38 +40,38 @@ def test_counter_techcombank_rates(mock_response):
 
 
 def test_online_techcombank_rates(mock_response):
-    with patch("interest.scrapers.techcombank.requests.get", return_value=mock_response):
-        records = TechcombankScraper().scrape()
+    with patch("interest.scrapers.multi_rate.requests.get", return_value=mock_response):
+        records = MultiRateScraper().scrape()
     tcb_online = next(r for r in records if r.bank == "Techcombank" and r.channel == "online")
     assert tcb_online.rate_1m == 3.7
     assert tcb_online.rate_18m is None
 
 
 def test_dash_value_becomes_none(mock_response):
-    with patch("interest.scrapers.techcombank.requests.get", return_value=mock_response):
-        records = TechcombankScraper().scrape()
+    with patch("interest.scrapers.multi_rate.requests.get", return_value=mock_response):
+        records = MultiRateScraper().scrape()
     for r in records:
         assert r.rate_18m is None
 
 
 def test_date_matches_today(mock_response):
     from datetime import date
-    with patch("interest.scrapers.techcombank.requests.get", return_value=mock_response):
-        records = TechcombankScraper().scrape()
+    with patch("interest.scrapers.multi_rate.requests.get", return_value=mock_response):
+        records = MultiRateScraper().scrape()
     assert all(r.date == date.today().strftime("%Y-%m-%d") for r in records)
 
 
 def test_multiple_banks_parsed(mock_response):
-    with patch("interest.scrapers.techcombank.requests.get", return_value=mock_response):
-        records = TechcombankScraper().scrape()
+    with patch("interest.scrapers.multi_rate.requests.get", return_value=mock_response):
+        records = MultiRateScraper().scrape()
     counter_banks = [r.bank for r in records if r.channel == "counter"]
     assert "Techcombank" in counter_banks
     assert "Vietcombank" in counter_banks
 
 
 def test_scrape_calls_raise_for_status(mock_response):
-    with patch("interest.scrapers.techcombank.requests.get", return_value=mock_response):
-        TechcombankScraper().scrape()
+    with patch("interest.scrapers.multi_rate.requests.get", return_value=mock_response):
+        MultiRateScraper().scrape()
     mock_response.raise_for_status.assert_called_once()
 
 
@@ -108,7 +108,7 @@ _NO_THEAD_HTML = """<html><body>
 
 
 def test_header_row_in_tbody_is_skipped():
-    scraper = TechcombankScraper.__new__(TechcombankScraper)
+    scraper = MultiRateScraper.__new__(MultiRateScraper)
     records = scraper._parse(_NO_THEAD_HTML)
     bank_names = [r.bank for r in records]
     assert "Ngân hàng" not in bank_names
@@ -116,7 +116,7 @@ def test_header_row_in_tbody_is_skipped():
 
 
 def test_header_row_in_tbody_exact_record_count():
-    scraper = TechcombankScraper.__new__(TechcombankScraper)
+    scraper = MultiRateScraper.__new__(MultiRateScraper)
     records = scraper._parse(_NO_THEAD_HTML)
     assert len(records) == 2
 
@@ -154,7 +154,7 @@ _NGAN_HANG_TD_HTML = """<html><body>
 
 
 def test_ngan_hang_td_row_is_skipped():
-    scraper = TechcombankScraper.__new__(TechcombankScraper)
+    scraper = MultiRateScraper.__new__(MultiRateScraper)
     records = scraper._parse(_NGAN_HANG_TD_HTML)
     bank_names = [r.bank for r in records]
     assert "Ngân hàng" not in bank_names
@@ -192,7 +192,7 @@ _NOISY_RATES_HTML = """<html><body>
 
 
 def test_noisy_rate_extracts_leading_number():
-    scraper = TechcombankScraper.__new__(TechcombankScraper)
+    scraper = MultiRateScraper.__new__(MultiRateScraper)
     records = scraper._parse(_NOISY_RATES_HTML)
     assert len(records) == 1
     assert records[0].rate_1m == 4.40

@@ -50,6 +50,19 @@ with tab1:
         }
         st.dataframe(display, column_config=col_config, use_container_width=True, hide_index=True)
 
+        st.subheader("Rate Comparison Chart")
+        chart_channel = st.radio(
+            "Channel", ["counter", "online"], horizontal=True, key="interest_chart_channel"
+        )
+        chart_df = load_interest(date)
+        chart_df = chart_df[chart_df["channel"] == chart_channel][
+            ["bank", "rate_3m", "rate_6m", "rate_12m", "rate_24m"]
+        ].set_index("bank").rename(columns={
+            "rate_3m": "3m %", "rate_6m": "6m %",
+            "rate_12m": "12m %", "rate_24m": "24m %",
+        })
+        st.bar_chart(chart_df)
+
 # ── Stock Prices ──────────────────────────────────────────────────────────────
 with tab2:
     dates = available_dates("stock")

@@ -1,7 +1,7 @@
 import os
 
 from interest.runner import CrawlRunner
-from interest.scrapers.techcombank import TechcombankScraper
+from interest.scrapers.multi_rate import MultiRateScraper
 from interest.repositories.csv import CSVRepository
 from stock.runner import StockCrawlRunner
 from stock.scrapers.vnstock import VnstockScraper
@@ -13,7 +13,7 @@ DATA_DIR = os.path.join(BASE_DIR, "data")
 
 def main():
     CrawlRunner(
-        [TechcombankScraper()],
+        [MultiRateScraper()],
         CSVRepository(data_dir=os.path.join(DATA_DIR, "interest")),
     ).run()
     StockCrawlRunner(

@@ -30,34 +30,32 @@ def _parse_rate(text: str) -> Optional[float]:
     return None
 
 
-class TechcombankScraper(BaseScraper):
-    def scrape(self) -> list[InterestRate]:
+class MultiRateScraper(BaseScraper):
+    def scrape(self) -> list:
         response = requests.get(_URL, headers=_HEADERS, timeout=30)
         response.raise_for_status()
         return self._parse(response.text)
 
-    def _parse(self, html: str) -> list[InterestRate]:
+    def _parse(self, html: str) -> list:
         soup = BeautifulSoup(html, "html.parser")
-        # Select only tables whose first cell is the 'Ngân hàng' column header
         rate_tables = [
             t for t in soup.find_all("table")
             if t.find("tr") and t.find("tr").find(["td", "th"])
             and t.find("tr").find(["td", "th"]).get_text(strip=True) == "Ngân hàng"
         ]
         today = date.today().strftime("%Y-%m-%d")
-        records: list[InterestRate] = []
+        records = []
         channels = ["counter", "online"]
         for table, channel in zip(rate_tables[:2], channels):
             records.extend(self._parse_table(table, channel, today))
         return records
 
-    def _parse_table(self, table, channel: str, today: str) -> list[InterestRate]:
+    def _parse_table(self, table, channel: str, today: str) -> list:
         records = []
         for row in table.find("tbody").find_all("tr"):
             cells = row.find_all(["td", "th"])
             if len(cells) < 8:
                 continue
-            # Skip header rows that may appear inside <tbody> (no <thead>) on the live page
             if cells[0].name == "th":
                 continue
             bank = cells[0].get_text(strip=True)
