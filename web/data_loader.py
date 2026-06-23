@@ -69,6 +69,11 @@ def load_portfolio() -> dict:
     }
 
 
+def save_portfolio(data: dict) -> None:
+    with open(_PORTFOLIO_PATH, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+
+
 @st.cache_data(ttl=60)
 def load_intraday_prices(symbols: tuple) -> dict:
     from stock.scrapers.intraday import fetch_intraday_prices, is_market_open

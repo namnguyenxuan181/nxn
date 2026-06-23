@@ -12,6 +12,7 @@ from web.data_loader import (
     load_news,
     load_portfolio,
     load_stock,
+    save_portfolio,
 )
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -190,10 +191,65 @@ with tab4:
     portfolio = load_portfolio()
     watchlist = portfolio["watchlist"]
     holdings = portfolio["holdings"]
+
+    # ── Add / Remove ──
+    with st.expander("➕ Manage Portfolio", expanded=not watchlist and not holdings):
+        col_add, col_remove = st.columns(2)
+
+        with col_add:
+            st.markdown("**Add to Watchlist**")
+            with st.form("add_watchlist", clear_on_submit=True):
+                new_sym = st.text_input("Symbol (e.g. TCB)").strip().upper()
+                if st.form_submit_button("Add"):
+                    if new_sym and new_sym not in watchlist:
+                        watchlist = watchlist + [new_sym]
+                        save_portfolio({"watchlist": watchlist, "holdings": holdings})
+                        st.cache_data.clear()
+                        st.rerun()
+                    elif new_sym in watchlist:
+                        st.warning(f"{new_sym} already in watchlist.")
+
+            st.markdown("**Add Holding**")
+            with st.form("add_holding", clear_on_submit=True):
+                h_sym = st.text_input("Symbol").strip().upper()
+                h_qty = st.number_input("Quantity", min_value=1, step=1, value=100)
+                h_price = st.number_input("Buy Price (VND)", min_value=1, step=100, value=30000)
+                if st.form_submit_button("Add Holding"):
+                    if h_sym:
+                        new_holding = {"symbol": h_sym, "quantity": int(h_qty), "buy_price": int(h_price)}
+                        save_portfolio({"watchlist": watchlist, "holdings": holdings + [new_holding]})
+                        st.cache_data.clear()
+                        st.rerun()
+
+        with col_remove:
+            st.markdown("**Remove from Watchlist**")
+            if watchlist:
+                to_remove = st.multiselect("Select symbols to remove", watchlist)
+                if st.button("Remove Selected", key="rm_watchlist") and to_remove:
+                    new_wl = [s for s in watchlist if s not in to_remove]
+                    save_portfolio({"watchlist": new_wl, "holdings": holdings})
+                    st.cache_data.clear()
+                    st.rerun()
+            else:
+                st.caption("Watchlist is empty.")
+
+            st.markdown("**Remove Holding**")
+            if holdings:
+                h_labels = [f"{h['symbol']} ({h['quantity']} @ {h['buy_price']:,})" for h in holdings]
+                to_rm_idx = st.multiselect("Select holdings to remove", range(len(holdings)),
+                                           format_func=lambda i: h_labels[i])
+                if st.button("Remove Selected", key="rm_holdings") and to_rm_idx:
+                    new_h = [h for i, h in enumerate(holdings) if i not in to_rm_idx]
+                    save_portfolio({"watchlist": watchlist, "holdings": new_h})
+                    st.cache_data.clear()
+                    st.rerun()
+            else:
+                st.caption("No holdings yet.")
+
     all_symbols = list({sym for sym in watchlist} | {h["symbol"] for h in holdings})
 
     if not all_symbols:
-        st.info("Create portfolio.json to track your positions. See portfolio.json.example.")
+        st.info("Add symbols above to start tracking.")
     else:
         stock_dates = available_dates("stock")
         if not stock_dates:
