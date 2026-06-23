@@ -1,7 +1,7 @@
 import json
 import os
 import pandas as pd
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 
 from interest.runner import CrawlRunner
 from interest.scrapers.multi_rate import MultiRateScraper
@@ -12,6 +12,12 @@ from stock.repositories.csv import StockCSVRepository
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.path.join(BASE_DIR, "data")
+_VN_TZ = timezone(timedelta(hours=7))
+
+
+def _is_trading_day_after_open() -> bool:
+    now = datetime.now(_VN_TZ)
+    return now.weekday() < 5 and now.hour >= 9
 
 
 def _load_stock_csv(date_str: str) -> pd.DataFrame:
@@ -27,10 +33,14 @@ def main():
         CSVRepository(data_dir=os.path.join(DATA_DIR, "interest")),
     ).run()
 
-    StockCrawlRunner(
-        [VnstockScraper()],
-        StockCSVRepository(data_dir=os.path.join(DATA_DIR, "stock")),
-    ).run()
+    stock_repo = StockCSVRepository(data_dir=os.path.join(DATA_DIR, "stock"))
+    StockCrawlRunner([VnstockScraper()], stock_repo).run()
+
+    if _is_trading_day_after_open():
+        today_str = date.today().strftime("%Y-%m-%d")
+        today_records = VnstockScraper(target_date=today_str).scrape()
+        if today_records:
+            stock_repo.save(today_records)
 
     from news.repositories.json_repo import JSONNewsRepository
     from news.runner import NewsRunner
