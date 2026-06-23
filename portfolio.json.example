@@ -1,0 +1,7 @@
+{
+  "watchlist": ["TCB", "VCB", "HPG"],
+  "holdings": [
+    {"symbol": "TCB", "quantity": 1000, "buy_price": 28500},
+    {"symbol": "VCB", "quantity": 500, "buy_price": 95000}
+  ]
+}

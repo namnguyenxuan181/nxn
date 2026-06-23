@@ -3,6 +3,8 @@ import json
 import os
 import re
 
+_PORTFOLIO_PATH = os.path.join(os.path.dirname(__file__), "..", "portfolio.json")
+
 import pandas as pd
 import streamlit as st
 
@@ -53,3 +55,23 @@ def load_news(date: str) -> pd.DataFrame:
     with open(path, encoding="utf-8") as f:
         data = json.load(f)
     return pd.DataFrame(data)
+
+
+@st.cache_data(ttl=300)
+def load_portfolio() -> dict:
+    if not os.path.exists(_PORTFOLIO_PATH):
+        return {"watchlist": [], "holdings": []}
+    with open(_PORTFOLIO_PATH, encoding="utf-8") as f:
+        data = json.load(f)
+    return {
+        "watchlist": data.get("watchlist", []),
+        "holdings": data.get("holdings", []),
+    }
+
+
+@st.cache_data(ttl=60)
+def load_intraday_prices(symbols: tuple) -> dict:
+    from stock.scrapers.intraday import fetch_intraday_prices, is_market_open
+    if not is_market_open():
+        return {}
+    return fetch_intraday_prices(list(symbols))
