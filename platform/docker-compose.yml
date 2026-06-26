@@ -1,10 +1,9 @@
-version: "3.8"
-
-# ── NXN Data + AI Platform ─────────────────────────────────────────────────────
+# NXN Data + AI Platform
 # Khởi động: cp .env.example .env && docker compose up -d
 # UI:
 #   MinIO      → http://localhost:9001  (minioadmin / minioadmin)
 #   Trino      → http://localhost:8080
+#   Nessie     → http://localhost:19120
 #   Airflow    → http://localhost:8082  (admin / admin)
 #   Superset   → http://localhost:8088  (admin / admin)
 #   AI Platform→ http://localhost:8300
@@ -32,7 +31,6 @@ services:
       timeout: 5s
       retries: 5
 
-  # Tạo bucket tự động khi khởi động
   minio-init:
     image: minio/mc:latest
     container_name: nxn-minio-init
@@ -43,24 +41,24 @@ services:
       /bin/sh -c "
         mc alias set local http://minio:9000 ${MINIO_ACCESS_KEY:-minioadmin} ${MINIO_SECRET_KEY:-minioadmin};
         mc mb --ignore-existing local/warehouse;
-        mc mb --ignore-existing local/raw;
-        echo 'MinIO buckets ready';
+        echo 'Bucket warehouse ready';
       "
 
-  # ── 2. Iceberg Catalog (Hive Metastore) ──────────────────
-  metastore:
-    image: bitsondatadev/hive-metastore:3.0.0
-    container_name: nxn-metastore
+  # ── 2. Iceberg Catalog (Nessie REST) ─────────────────────
+  nessie:
+    image: projectnessie/nessie:latest
+    container_name: nxn-nessie
     restart: unless-stopped
-    depends_on:
-      minio:
-        condition: service_healthy
     ports:
-      - "9083:9083"
-    volumes:
-      - ./hive/metastore-site.xml:/opt/apache-hive-metastore-3.0.0-bin/conf/metastore-site.xml:ro
+      - "19120:19120"
     environment:
-      METASTORE_DB_HOSTNAME: localhost
+      QUARKUS_HTTP_PORT: "19120"
+      NESSIE_VERSION_STORE_TYPE: IN_MEMORY
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:19120/q/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
 
   # ── 3. Query Engine ──────────────────────────────────────
   trino:
@@ -68,14 +66,16 @@ services:
     container_name: nxn-trino
     restart: unless-stopped
     depends_on:
-      - metastore
-      - minio
+      nessie:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
     ports:
       - "8080:8080"
     volumes:
       - ./trino/catalog:/etc/trino/catalog
     environment:
-      - JAVA_TOOL_OPTIONS=-Xmx4G
+      JAVA_TOOL_OPTIONS: "-Xmx4G"
 
   # ── 4. ETL Orchestration ─────────────────────────────────
   postgres:
@@ -123,6 +123,7 @@ services:
       - ./airflow/dags:/opt/airflow/dags
       - ./dbt:/opt/dbt
       - ../data:/opt/nxn/data:ro
+      - ../:/opt/nxn:ro
 
   # ── 5. BI Dashboard ──────────────────────────────────────
   superset:
@@ -146,7 +147,7 @@ services:
           --username admin --firstname Admin --lastname User
           --email admin@nxn.local --password admin 2>/dev/null || true &&
         superset init &&
-        superset run -h 0.0.0.0 -p 8088 --with-threads --reload --debugger
+        superset run -h 0.0.0.0 -p 8088 --with-threads
       "
 
   # ── 6. Vector Store ──────────────────────────────────────

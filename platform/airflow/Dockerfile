@@ -14,4 +14,4 @@ RUN pip install --no-cache-dir \
     pyarrow==16.1.0 \
     pandas==2.2.2 \
     boto3==1.34.0 \
-    chromadb-client==0.5.0
+    chromadb-client
