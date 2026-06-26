@@ -1,0 +1,41 @@
+version: 2
+
+sources:
+  - name: raw
+    database: iceberg
+    schema: raw
+    description: "Dữ liệu thô được ingest từ scrapers"
+    tables:
+      - name: stock_prices
+        description: "Giá cổ phiếu hàng ngày"
+        columns:
+          - name: date
+            description: "Ngày giao dịch (YYYY-MM-DD)"
+          - name: symbol
+            description: "Mã cổ phiếu"
+          - name: open
+          - name: high
+          - name: low
+          - name: close
+          - name: volume
+
+      - name: news
+        description: "Tin tức thị trường"
+        columns:
+          - name: source
+          - name: title
+          - name: url
+          - name: published_at
+          - name: description
+          - name: sentiment
+
+      - name: interest_rates
+        description: "Lãi suất ngân hàng"
+        columns:
+          - name: bank
+          - name: channel
+          - name: rate_3m
+          - name: rate_6m
+          - name: rate_12m
+          - name: rate_24m
+          - name: fetched_at
