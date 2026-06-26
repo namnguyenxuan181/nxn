@@ -56,7 +56,4 @@ def screen(req: ScreenRequest):
 
 @app.get("/", response_class=HTMLResponse)
 def index():
-    path = _STATIC / "index.html"
-    if path.exists():
-        return path.read_text(encoding="utf-8")
-    return "<h1>NXN AI Platform — frontend not yet built</h1>"
+    return (_STATIC / "index.html").read_text(encoding="utf-8")
