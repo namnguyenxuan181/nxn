@@ -1,0 +1,141 @@
+import csv
+import glob
+import json
+import os
+from datetime import date, timedelta
+from typing import Dict, List, Optional
+
+from interest.model import InterestRate
+from news.model import NewsArticle
+from stock.model import StockPrice
+
+
+def _data_dir() -> str:
+    return os.environ.get("DATA_DIR", "./data")
+
+
+def _int_or_none(val: str) -> Optional[int]:
+    return int(val) if val and val.strip() else None
+
+
+def _float_or_none(val: str) -> Optional[float]:
+    return float(val) if val and val.strip() else None
+
+
+def _read_stock_csv(path: str) -> List[StockPrice]:
+    rows = []
+    try:
+        with open(path, encoding="utf-8") as f:
+            for row in csv.DictReader(f):
+                rows.append(StockPrice(
+                    date=row["date"],
+                    symbol=row["symbol"],
+                    open=_int_or_none(row.get("open", "")),
+                    high=_int_or_none(row.get("high", "")),
+                    low=_int_or_none(row.get("low", "")),
+                    close=_int_or_none(row.get("close", "")),
+                    volume=_int_or_none(row.get("volume", "")),
+                ))
+    except (FileNotFoundError, KeyError):
+        pass
+    return rows
+
+
+def _sorted_stock_csvs() -> List[str]:
+    pattern = os.path.join(_data_dir(), "stock", "stock_*.csv")
+    return sorted(glob.glob(pattern), reverse=True)
+
+
+def _get_stock_by_index(index: int, symbols: List[str]) -> Dict[str, StockPrice]:
+    files = _sorted_stock_csvs()
+    if len(files) <= index:
+        return {}
+    sym_set = set(symbols)
+    result = {}
+    for row in _read_stock_csv(files[index]):
+        if not sym_set or row.symbol in sym_set:
+            result[row.symbol] = row
+    return result
+
+
+def get_all_symbols() -> List[str]:
+    files = _sorted_stock_csvs()
+    if not files:
+        return []
+    return sorted({row.symbol for row in _read_stock_csv(files[0])})
+
+
+def get_latest_stock(symbols: List[str]) -> Dict[str, StockPrice]:
+    return _get_stock_by_index(0, symbols)
+
+
+def get_previous_stock(symbols: List[str]) -> Dict[str, StockPrice]:
+    return _get_stock_by_index(1, symbols)
+
+
+def get_stock_history(symbol: str, days: int = 10) -> List[StockPrice]:
+    files = _sorted_stock_csvs()[:days]
+    result = []
+    for path in reversed(files):
+        for row in _read_stock_csv(path):
+            if row.symbol == symbol:
+                result.append(row)
+                break
+    return result
+
+
+def get_recent_news(symbols: List[str], days: int = 7) -> List[NewsArticle]:
+    sym_set = {s.upper() for s in symbols}
+    articles = []
+    for i in range(days):
+        d = (date.today() - timedelta(days=i)).strftime("%Y-%m-%d")
+        path = os.path.join(_data_dir(), "news", f"news_{d}.json")
+        if not os.path.exists(path):
+            continue
+        try:
+            with open(path, encoding="utf-8") as f:
+                data = json.load(f)
+            for item in data:
+                article = NewsArticle(
+                    source=item.get("source", ""),
+                    title=item.get("title", ""),
+                    url=item.get("url", ""),
+                    published_at=item.get("published_at", ""),
+                    description=item.get("description", ""),
+                    summary=item.get("summary", ""),
+                    sentiment=item.get("sentiment", "neutral"),
+                )
+                if not sym_set or any(
+                    s in article.title.upper() or s in article.description.upper()
+                    for s in sym_set
+                ):
+                    articles.append(article)
+        except (json.JSONDecodeError, KeyError):
+            pass
+    return articles
+
+
+def get_interest_rates() -> List[InterestRate]:
+    pattern = os.path.join(_data_dir(), "interest", "interest_*.csv")
+    files = sorted(glob.glob(pattern), reverse=True)
+    if not files:
+        return []
+    rates = []
+    try:
+        with open(files[0], encoding="utf-8") as f:
+            for row in csv.DictReader(f):
+                rates.append(InterestRate(
+                    date=row["date"],
+                    bank=row["bank"],
+                    channel=row["channel"],
+                    rate_1m=_float_or_none(row.get("rate_1m", "")),
+                    rate_3m=_float_or_none(row.get("rate_3m", "")),
+                    rate_6m=_float_or_none(row.get("rate_6m", "")),
+                    rate_12m=_float_or_none(row.get("rate_12m", "")),
+                    rate_18m=_float_or_none(row.get("rate_18m", "")),
+                    rate_24m=_float_or_none(row.get("rate_24m", "")),
+                    rate_36m=_float_or_none(row.get("rate_36m", "")),
+                ))
+    except (FileNotFoundError, KeyError):
+        pass
+    return rates
