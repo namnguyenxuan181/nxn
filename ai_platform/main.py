@@ -7,6 +7,7 @@ from pydantic import BaseModel
 
 from ai_platform.chat import stream_chat
 from ai_platform.data_access import get_all_symbols
+from ai_platform.report import generate_report
 
 app = FastAPI(title="NXN AI Platform")
 
@@ -30,6 +31,14 @@ def chat(req: ChatRequest):
             yield f"data: {chunk}\n\n"
         yield "data: [DONE]\n\n"
     return StreamingResponse(generate(), media_type="text/event-stream")
+
+
+@app.get("/api/report/{symbol}")
+def report(symbol: str):
+    result = generate_report(symbol.upper())
+    if result is None:
+        raise HTTPException(status_code=404, detail=f"No data available for {symbol.upper()}")
+    return result
 
 
 @app.get("/", response_class=HTMLResponse)
