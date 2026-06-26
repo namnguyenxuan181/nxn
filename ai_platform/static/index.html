@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>NXN AI Platform</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
   <style>
     #chat-messages { height: 420px; overflow-y: auto; background: #fafafa; border-radius: 8px; padding: 12px; }
     .msg-row { display: flex; margin-bottom: 8px; }
@@ -22,6 +23,7 @@
     <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#pane-chat">💬 Chat</button></li>
     <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#pane-report">📊 Báo cáo</button></li>
     <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#pane-screener">🔍 Screener</button></li>
+    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#pane-intraday">📈 Intraday</button></li>
   </ul>
 
   <div class="tab-content">
@@ -71,6 +73,31 @@
         </thead>
         <tbody id="screen-body"></tbody>
       </table>
+    </div>
+
+    <!-- Intraday -->
+    <div class="tab-pane fade" id="pane-intraday">
+      <div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
+        <input id="intraday-symbol" type="text" class="form-control" placeholder="Mã cổ phiếu (VD: TCB)" style="max-width:180px">
+        <div class="btn-group" role="group">
+          <input type="radio" class="btn-check" name="resolution" id="res-1" value="1">
+          <label class="btn btn-outline-primary" for="res-1">1m</label>
+          <input type="radio" class="btn-check" name="resolution" id="res-5" value="5" checked>
+          <label class="btn btn-outline-primary" for="res-5">5m</label>
+          <input type="radio" class="btn-check" name="resolution" id="res-10" value="10">
+          <label class="btn btn-outline-primary" for="res-10">10m</label>
+        </div>
+        <button id="intraday-btn" class="btn btn-primary">Tải dữ liệu</button>
+        <span id="intraday-status" class="text-muted small"></span>
+      </div>
+      <div id="intraday-spinner" class="d-none text-primary mb-2">
+        <div class="spinner-border spinner-border-sm"></div> Đang tải...
+      </div>
+      <div id="intraday-chart" style="height:320px;border:1px solid #dee2e6;border-radius:4px" class="d-none"></div>
+      <div id="intraday-vol-chart" style="height:100px;border:1px solid #dee2e6;border-top:none;border-radius:0 0 4px 4px" class="d-none"></div>
+      <div id="intraday-summary" class="mt-3 d-none">
+        <div class="row row-cols-2 row-cols-md-4 g-2" id="intraday-stats"></div>
+      </div>
     </div>
 
   </div>
@@ -210,6 +237,116 @@ document.getElementById('screen-btn').addEventListener('click', async () => {
     }
   } catch { alert('Lỗi kết nối.'); }
   finally { document.getElementById('screen-spinner').classList.add('d-none'); }
+});
+
+// ── Intraday ──────────────────────────────────────────────────────────────────
+let _intradayChart = null;
+let _candleSeries = null;
+let _volSeries = null;
+
+function _initChart() {
+  const chartEl = document.getElementById('intraday-chart');
+  const volEl = document.getElementById('intraday-vol-chart');
+  if (_intradayChart) { _intradayChart.remove(); _intradayChart = null; }
+
+  _intradayChart = LightweightCharts.createChart(chartEl, {
+    width: chartEl.clientWidth,
+    height: 320,
+    layout: { background: { color: '#fff' }, textColor: '#333' },
+    grid: { vertLines: { color: '#f0f0f0' }, horzLines: { color: '#f0f0f0' } },
+    timeScale: { timeVisible: true, secondsVisible: false, borderColor: '#ccc' },
+    rightPriceScale: { borderColor: '#ccc' },
+  });
+
+  _candleSeries = _intradayChart.addCandlestickSeries({
+    upColor: '#22c55e', downColor: '#ef4444',
+    borderUpColor: '#22c55e', borderDownColor: '#ef4444',
+    wickUpColor: '#22c55e', wickDownColor: '#ef4444',
+  });
+
+  const volChart = LightweightCharts.createChart(volEl, {
+    width: volEl.clientWidth,
+    height: 100,
+    layout: { background: { color: '#fafafa' }, textColor: '#999' },
+    grid: { vertLines: { color: '#f0f0f0' }, horzLines: { color: '#f0f0f0' } },
+    timeScale: { visible: false },
+    rightPriceScale: { borderColor: '#ccc', scaleMargins: { top: 0.1, bottom: 0 } },
+  });
+  _volSeries = volChart.addHistogramSeries({ color: '#93c5fd', priceScaleId: 'right' });
+
+  // Sync time scales
+  _intradayChart.timeScale().subscribeVisibleLogicalRangeChange(range => {
+    if (range) volChart.timeScale().setVisibleLogicalRange(range);
+  });
+}
+
+document.getElementById('intraday-btn').addEventListener('click', async () => {
+  const sym = document.getElementById('intraday-symbol').value.trim().toUpperCase();
+  if (!sym) return;
+  const res = document.querySelector('input[name="resolution"]:checked').value;
+  const status = document.getElementById('intraday-status');
+  const spinner = document.getElementById('intraday-spinner');
+  const chartEl = document.getElementById('intraday-chart');
+  const volEl = document.getElementById('intraday-vol-chart');
+  const summary = document.getElementById('intraday-summary');
+
+  spinner.classList.remove('d-none');
+  status.textContent = '';
+  chartEl.classList.add('d-none');
+  volEl.classList.add('d-none');
+  summary.classList.add('d-none');
+
+  try {
+    const resp = await fetch(`/api/intraday/${sym}?resolution=${res}`);
+    const data = await resp.json();
+    if (!resp.ok) { status.textContent = data.detail || 'Lỗi'; return; }
+
+    const bars = data.bars;
+    if (!bars.length) {
+      status.textContent = 'Không có dữ liệu intraday hôm nay.';
+      return;
+    }
+
+    chartEl.classList.remove('d-none');
+    volEl.classList.remove('d-none');
+    summary.classList.remove('d-none');
+    _initChart();
+
+    _candleSeries.setData(bars.map(b => ({
+      time: b.t,
+      open: b.o, high: b.h, low: b.l, close: b.c,
+    })));
+    _volSeries.setData(bars.map(b => ({
+      time: b.t,
+      value: b.v,
+      color: b.c >= b.o ? '#86efac' : '#fca5a5',
+    })));
+    _intradayChart.timeScale().fitContent();
+
+    // Stats
+    const last = bars[bars.length - 1];
+    const first = bars[0];
+    const high = Math.max(...bars.map(b => b.h));
+    const low = Math.min(...bars.map(b => b.l));
+    const totalVol = bars.reduce((s, b) => s + b.v, 0);
+    const chgPct = ((last.c - first.o) / first.o * 100).toFixed(2);
+    const chgCls = chgPct >= 0 ? 'text-success' : 'text-danger';
+    const fmt = v => v.toLocaleString('vi-VN');
+
+    document.getElementById('intraday-stats').innerHTML = `
+      <div class="col"><div class="card p-2 text-center"><div class="text-muted small">Đóng cửa</div><div class="fw-bold">${fmt(last.c)}</div></div></div>
+      <div class="col"><div class="card p-2 text-center"><div class="text-muted small">Thay đổi</div><div class="fw-bold ${chgCls}">${chgPct >= 0 ? '+' : ''}${chgPct}%</div></div></div>
+      <div class="col"><div class="card p-2 text-center"><div class="text-muted small">Cao / Thấp</div><div class="fw-bold">${fmt(high)} / ${fmt(low)}</div></div></div>
+      <div class="col"><div class="card p-2 text-center"><div class="text-muted small">Khối lượng</div><div class="fw-bold">${fmt(totalVol)}</div></div></div>`;
+
+    const mkt = data.market_open ? '🟢 Đang giao dịch' : '🔴 Đã đóng cửa';
+    status.textContent = `${sym} · ${res}m · ${bars.length} nến · ${mkt}`;
+  } catch { status.textContent = 'Lỗi kết nối.'; }
+  finally { spinner.classList.add('d-none'); }
+});
+
+document.getElementById('intraday-symbol').addEventListener('keydown', e => {
+  if (e.key === 'Enter') document.getElementById('intraday-btn').click();
 });
 </script>
 </body>

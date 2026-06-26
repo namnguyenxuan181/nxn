@@ -9,6 +9,7 @@ from ai_platform.chat import stream_chat
 from ai_platform.data_access import get_all_symbols
 from ai_platform.report import generate_report
 from ai_platform.screener import screen_stocks
+from stock.scrapers.intraday import fetch_intraday_ohlc, is_market_open
 
 app = FastAPI(title="NXN AI Platform")
 
@@ -52,6 +53,19 @@ def screen(req: ScreenRequest):
     if result.get("error") == "Could not parse query":
         raise HTTPException(status_code=400, detail=result["error"])
     return result
+
+
+@app.get("/api/intraday/{symbol}")
+def intraday(symbol: str, resolution: int = 5):
+    if resolution not in (1, 5, 10):
+        raise HTTPException(status_code=400, detail="resolution must be 1, 5, or 10")
+    bars = fetch_intraday_ohlc(symbol.upper(), resolution)
+    return {
+        "symbol": symbol.upper(),
+        "resolution": resolution,
+        "market_open": is_market_open(),
+        "bars": bars,
+    }
 
 
 @app.get("/", response_class=HTMLResponse)
