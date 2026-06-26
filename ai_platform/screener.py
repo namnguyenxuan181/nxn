@@ -1,9 +1,6 @@
 import json
-import os
 import re
 from typing import Dict, List, Optional
-
-import anthropic
 
 from ai_platform.data_access import (
     get_all_symbols,
@@ -11,8 +8,7 @@ from ai_platform.data_access import (
     get_previous_stock,
     get_recent_news,
 )
-
-_CLIENT = anthropic.Anthropic()
+from ai_platform.llm import complete
 
 _FILTER_PROMPT = (
     'Convert this Vietnamese stock screening query to a JSON filter spec.\n'
@@ -28,12 +24,7 @@ _FILTER_PROMPT = (
 
 
 def _parse_filter(query: str) -> Optional[Dict]:
-    response = _CLIENT.messages.create(
-        model="claude-haiku-4-5-20251001",
-        max_tokens=256,
-        messages=[{"role": "user", "content": _FILTER_PROMPT.format(query=query)}],
-    )
-    text = response.content[0].text.strip()
+    text = complete([{"role": "user", "content": _FILTER_PROMPT.format(query=query)}]).strip()
     text = re.sub(r"^```[a-z]*\n?", "", text)
     text = re.sub(r"\n?```$", "", text)
     try:
@@ -43,9 +34,6 @@ def _parse_filter(query: str) -> Optional[Dict]:
 
 
 def screen_stocks(query: str) -> Dict:
-    if not os.environ.get("ANTHROPIC_API_KEY"):
-        return {"error": "ANTHROPIC_API_KEY not configured"}
-
     spec = _parse_filter(query)
     if spec is None:
         return {"error": "Could not parse query"}

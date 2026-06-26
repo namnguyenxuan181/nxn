@@ -1,12 +1,8 @@
-import os
 import re
 from typing import Dict, Generator, List
 
-import anthropic
-
 from ai_platform.data_access import get_all_symbols, get_recent_news, get_stock_history
-
-_CLIENT = anthropic.Anthropic()
+from ai_platform.llm import stream_response
 
 _SYSTEM = (
     "Bạn là trợ lý phân tích thị trường chứng khoán Việt Nam. "
@@ -59,21 +55,9 @@ def _build_context(symbols: List[str]) -> str:
 
 
 def stream_chat(message: str, history: List[Dict]) -> Generator[str, None, None]:
-    if not os.environ.get("ANTHROPIC_API_KEY"):
-        yield "Lỗi: ANTHROPIC_API_KEY chưa được cấu hình."
-        return
-
     symbols = extract_symbols(message, _ensure_symbols())
     context = _build_context(symbols)
     messages = list(history[-10:])
     user_content = (context + "\n\nCâu hỏi: " + message) if context else message
     messages.append({"role": "user", "content": user_content})
-
-    with _CLIENT.messages.stream(
-        model="claude-haiku-4-5-20251001",
-        max_tokens=1024,
-        system=_SYSTEM,
-        messages=messages,
-    ) as stream:
-        for text in stream.text_stream:
-            yield text
+    yield from stream_response(_SYSTEM, messages)

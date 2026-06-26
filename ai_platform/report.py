@@ -1,12 +1,8 @@
-import os
 from datetime import datetime
 from typing import Dict, List, Optional
 
-import anthropic
-
 from ai_platform.data_access import get_interest_rates, get_recent_news, get_stock_history
-
-_CLIENT = anthropic.Anthropic()
+from ai_platform.llm import complete
 
 
 def _build_context(symbol: str) -> str:
@@ -52,9 +48,6 @@ def generate_report(symbol: str) -> Optional[Dict]:
     if not history:
         return None
 
-    if not os.environ.get("ANTHROPIC_API_KEY"):
-        return {"error": "ANTHROPIC_API_KEY not configured", "symbol": symbol}
-
     context = _build_context(symbol)
     prompt = (
         f"Phân tích cổ phiếu {symbol} dựa trên dữ liệu sau:\n\n{context}\n\n"
@@ -65,14 +58,8 @@ def generate_report(symbol: str) -> Optional[Dict]:
         "4. Nhận định ngắn (1-2 câu)\n\n"
         "Trả lời bằng tiếng Việt, súc tích."
     )
-
-    response = _CLIENT.messages.create(
-        model="claude-haiku-4-5-20251001",
-        max_tokens=1024,
-        messages=[{"role": "user", "content": prompt}],
-    )
     return {
         "symbol": symbol,
-        "report": response.content[0].text,
+        "report": complete([{"role": "user", "content": prompt}]),
         "generated_at": datetime.utcnow().isoformat(),
     }

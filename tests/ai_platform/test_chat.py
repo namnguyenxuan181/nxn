@@ -1,5 +1,4 @@
-import os
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 
 def test_extract_symbols_finds_match():
@@ -23,32 +22,25 @@ def test_extract_symbols_no_match():
     assert extract_symbols("Thị trường hôm nay?", ["TCB", "VCB"]) == []
 
 
-def test_stream_chat_no_api_key(monkeypatch):
+def test_stream_chat_no_llm_available(monkeypatch):
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
-    from ai_platform.chat import stream_chat
-    chunks = list(stream_chat("Hỏi gì đó", []))
-    assert any("ANTHROPIC_API_KEY" in c for c in chunks)
+    with patch("ai_platform.llm._ollama_running", return_value=False), \
+         patch("ai_platform.chat.get_all_symbols", return_value=[]), \
+         patch("ai_platform.chat.get_recent_news", return_value=[]):
+        from ai_platform.chat import stream_chat
+        chunks = list(stream_chat("Hỏi gì đó", []))
+    assert chunks
+    assert any("LLM" in c or "Ollama" in c or "ANTHROPIC" in c for c in chunks)
 
 
-def test_stream_chat_calls_claude_and_streams(monkeypatch):
+def test_stream_chat_calls_llm_and_streams(monkeypatch):
     monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
-
-    mock_stream_ctx = MagicMock()
-    mock_stream_ctx.__enter__ = MagicMock(return_value=mock_stream_ctx)
-    mock_stream_ctx.__exit__ = MagicMock(return_value=False)
-    mock_stream_ctx.text_stream = iter(["TCB ", "đang tăng"])
-
-    mock_client = MagicMock()
-    mock_client.messages.stream.return_value = mock_stream_ctx
-
-    with patch("ai_platform.chat._CLIENT", mock_client), \
+    with patch("ai_platform.chat.stream_response", return_value=iter(["TCB ", "đang tăng"])), \
          patch("ai_platform.chat.get_all_symbols", return_value=["TCB"]), \
          patch("ai_platform.chat.get_stock_history", return_value=[]), \
          patch("ai_platform.chat.get_recent_news", return_value=[]):
         from ai_platform.chat import stream_chat
         chunks = list(stream_chat("TCB hôm nay?", []))
-
-    assert mock_client.messages.stream.called
     assert "TCB " in chunks
     assert "đang tăng" in chunks
 
@@ -65,23 +57,13 @@ def test_symbols_endpoint():
 
 def test_chat_endpoint_streams_sse(monkeypatch):
     monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
-
-    mock_stream_ctx = MagicMock()
-    mock_stream_ctx.__enter__ = MagicMock(return_value=mock_stream_ctx)
-    mock_stream_ctx.__exit__ = MagicMock(return_value=False)
-    mock_stream_ctx.text_stream = iter(["Xin chào"])
-
-    mock_client = MagicMock()
-    mock_client.messages.stream.return_value = mock_stream_ctx
-
-    with patch("ai_platform.chat._CLIENT", mock_client), \
+    with patch("ai_platform.chat.stream_response", return_value=iter(["Xin chào"])), \
          patch("ai_platform.chat.get_all_symbols", return_value=[]), \
          patch("ai_platform.chat.get_recent_news", return_value=[]):
         from fastapi.testclient import TestClient
         from ai_platform.main import app
         client = TestClient(app)
         resp = client.post("/api/chat", json={"message": "Xin chào", "history": []})
-
     assert resp.status_code == 200
     assert "text/event-stream" in resp.headers["content-type"]
     assert "Xin chào" in resp.text
