@@ -4,10 +4,18 @@
 #   MinIO      → http://localhost:9001  (minioadmin / minioadmin)
 #   Trino      → http://localhost:8080
 #   Nessie     → http://localhost:19120
+#   Keycloak   → http://localhost:8090  (admin / admin)
+#   OPA        → http://localhost:8181
 #   Airflow    → http://localhost:8082  (admin / admin)
-#   Superset   → http://localhost:8088  (admin / admin)
+#   Superset   → http://localhost:8088  (OAuth via Keycloak)
 #   AI Platform→ http://localhost:8300
 #   ChromaDB   → http://localhost:8200
+#
+# Test users (Keycloak realm nxn):
+#   admin / admin123   → full access
+#   alice / alice123   → analyst (mart read-only, AI reports)
+#   bob   / bob123     → ai_user (chat only)
+#   carol / carol123   → data_engineer (raw + mart read/write)
 
 services:
 
@@ -63,7 +71,47 @@ services:
       timeout: 5s
       retries: 10
 
-  # ── 3. Query Engine ──────────────────────────────────────
+  # ── 3. Auth — Keycloak IdP ───────────────────────────────
+  keycloak:
+    image: quay.io/keycloak/keycloak:24.0
+    container_name: nxn-keycloak
+    restart: unless-stopped
+    environment:
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin
+      KC_HTTP_ENABLED: "true"
+      KC_HOSTNAME_STRICT: "false"
+      KC_HOSTNAME_STRICT_HTTPS: "false"
+    command: start-dev --import-realm
+    ports:
+      - "8090:8080"
+    volumes:
+      - keycloak_data:/opt/keycloak/data
+      - ./keycloak/realm-nxn.json:/opt/keycloak/data/import/realm-nxn.json
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8080/realms/nxn || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 60s
+
+  # ── 3b. Auth — OPA policy engine ─────────────────────────
+  opa:
+    image: openpolicyagent/opa:latest
+    container_name: nxn-opa
+    restart: unless-stopped
+    command: run --server --addr=0.0.0.0:8181 /policies
+    ports:
+      - "8181:8181"
+    volumes:
+      - ./opa/policies:/policies
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8181/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # ── 4. Query Engine ──────────────────────────────────────
   trino:
     image: trinodb/trino:438
     container_name: nxn-trino
@@ -73,14 +121,17 @@ services:
         condition: service_healthy
       minio:
         condition: service_healthy
+      opa:
+        condition: service_healthy
     ports:
       - "8080:8080"
     volumes:
       - ./trino/catalog:/etc/trino/catalog
+      - ./trino/config/access-control.properties:/etc/trino/access-control.properties
     environment:
       JAVA_TOOL_OPTIONS: "-Xmx4G"
 
-  # ── 4. ETL Orchestration ─────────────────────────────────
+  # ── 5. ETL Orchestration ─────────────────────────────────
   postgres:
     image: postgres:16-alpine
     container_name: nxn-postgres
@@ -129,7 +180,7 @@ services:
       - ../data:/opt/nxn/data:ro
       - ../:/opt/nxn:ro
 
-  # ── 5. BI Dashboard ──────────────────────────────────────
+  # ── 6. BI Dashboard ──────────────────────────────────────
   superset:
     image: apache/superset:3.1.3
     container_name: nxn-superset
@@ -154,7 +205,7 @@ services:
         superset run -h 0.0.0.0 -p 8088 --with-threads
       "
 
-  # ── 6. Vector Store ──────────────────────────────────────
+  # ── 7. Vector Store ──────────────────────────────────────
   chromadb:
     image: chromadb/chroma:0.5.0
     container_name: nxn-chromadb
@@ -164,7 +215,7 @@ services:
     volumes:
       - chroma_data:/chroma/chroma
 
-  # ── 7. AI Platform ───────────────────────────────────────
+  # ── 8. AI Platform ───────────────────────────────────────
   ai_platform:
     build:
       context: ..
@@ -174,6 +225,7 @@ services:
     depends_on:
       - trino
       - chromadb
+      - keycloak
     environment:
       TRINO_HOST: trino
       TRINO_PORT: "8080"
@@ -182,6 +234,10 @@ services:
       OLLAMA_URL: http://host.docker.internal:11434
       OLLAMA_MODEL: llama3.2
       DATA_DIR: /app/data
+      KEYCLOAK_URL: http://keycloak:8080
+      KEYCLOAK_PUBLIC_URL: http://localhost:8090
+      KEYCLOAK_REALM: nxn
+      KEYCLOAK_CLIENT_ID: ai-platform
     ports:
       - "8300:8000"
     volumes:
@@ -192,6 +248,7 @@ services:
 volumes:
   minio_data:
   nessie_data:
+  keycloak_data:
   postgres_data:
   superset_data:
   chroma_data:
