@@ -1,4 +1,4 @@
-from stock.model import StockPrice
+from services.stock.model import StockPrice
 
 
 def test_stock_price_fields():

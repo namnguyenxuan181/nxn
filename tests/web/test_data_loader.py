@@ -2,7 +2,7 @@ import json
 import os
 import pandas as pd
 from unittest.mock import patch
-from web.data_loader import available_dates, load_interest, load_stock, load_portfolio, load_intraday_prices
+from services.web.data_loader import available_dates, load_interest, load_stock, load_portfolio, load_intraday_prices
 
 
 def _write_csv(path: str, content: str) -> None:
@@ -23,7 +23,7 @@ _STOCK_CSV = (
 
 
 def test_available_dates_returns_sorted_desc(tmp_path, monkeypatch):
-    monkeypatch.setattr("web.data_loader.DATA_DIR", str(tmp_path))
+    monkeypatch.setattr("services.web.data_loader.DATA_DIR", str(tmp_path))
     _write_csv(str(tmp_path / "interest" / "interest_2026-06-17.csv"), _INTEREST_CSV)
     _write_csv(str(tmp_path / "interest" / "interest_2026-06-19.csv"), _INTEREST_CSV)
     dates = available_dates("interest")
@@ -31,13 +31,13 @@ def test_available_dates_returns_sorted_desc(tmp_path, monkeypatch):
 
 
 def test_available_dates_returns_empty_when_no_files(tmp_path, monkeypatch):
-    monkeypatch.setattr("web.data_loader.DATA_DIR", str(tmp_path))
+    monkeypatch.setattr("services.web.data_loader.DATA_DIR", str(tmp_path))
     (tmp_path / "interest").mkdir()
     assert available_dates("interest") == []
 
 
 def test_load_interest_returns_dataframe(tmp_path, monkeypatch):
-    monkeypatch.setattr("web.data_loader.DATA_DIR", str(tmp_path))
+    monkeypatch.setattr("services.web.data_loader.DATA_DIR", str(tmp_path))
     _write_csv(str(tmp_path / "interest" / "interest_2026-06-19.csv"), _INTEREST_CSV)
     df = load_interest("2026-06-19")
     assert isinstance(df, pd.DataFrame)
@@ -51,7 +51,7 @@ def test_load_interest_returns_dataframe(tmp_path, monkeypatch):
 
 
 def test_load_stock_returns_dataframe(tmp_path, monkeypatch):
-    monkeypatch.setattr("web.data_loader.DATA_DIR", str(tmp_path))
+    monkeypatch.setattr("services.web.data_loader.DATA_DIR", str(tmp_path))
     _write_csv(str(tmp_path / "stock" / "stock_2026-06-18.csv"), _STOCK_CSV)
     df = load_stock("2026-06-18")
     assert isinstance(df, pd.DataFrame)
@@ -70,7 +70,7 @@ _PORTFOLIO = {
 def test_load_portfolio_returns_data(tmp_path, monkeypatch):
     p = tmp_path / "portfolio.json"
     p.write_text(json.dumps(_PORTFOLIO), encoding="utf-8")
-    monkeypatch.setattr("web.data_loader._PORTFOLIO_PATH", str(p))
+    monkeypatch.setattr("services.web.data_loader._PORTFOLIO_PATH", str(p))
     result = load_portfolio()
     assert result["watchlist"] == ["TCB", "VCB"]
     assert len(result["holdings"]) == 1
@@ -78,20 +78,20 @@ def test_load_portfolio_returns_data(tmp_path, monkeypatch):
 
 
 def test_load_portfolio_missing_file_returns_empty(tmp_path, monkeypatch):
-    monkeypatch.setattr("web.data_loader._PORTFOLIO_PATH", str(tmp_path / "missing.json"))
+    monkeypatch.setattr("services.web.data_loader._PORTFOLIO_PATH", str(tmp_path / "missing.json"))
     result = load_portfolio()
     assert result == {"watchlist": [], "holdings": []}
 
 
 def test_load_intraday_prices_skips_when_market_closed():
-    with patch("stock.scrapers.intraday.is_market_open", return_value=False):
+    with patch("services.stock.scrapers.intraday.is_market_open", return_value=False):
         result = load_intraday_prices(("TCB", "VCB"))
     assert result == {}
 
 
 def test_load_intraday_prices_fetches_when_market_open():
-    with patch("stock.scrapers.intraday.is_market_open", return_value=True), \
-         patch("stock.scrapers.intraday.fetch_intraday_prices", return_value={"TCB": 32050}) as mock_fetch:
+    with patch("services.stock.scrapers.intraday.is_market_open", return_value=True), \
+         patch("services.stock.scrapers.intraday.fetch_intraday_prices", return_value={"TCB": 32050}) as mock_fetch:
         result = load_intraday_prices(("TCB",))
     mock_fetch.assert_called_once_with(["TCB"])
     assert result == {"TCB": 32050}

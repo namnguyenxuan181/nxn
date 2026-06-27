@@ -1,4 +1,4 @@
-from interest.model import InterestRate
+from services.interest.model import InterestRate
 
 
 def test_interest_rate_has_all_fields():

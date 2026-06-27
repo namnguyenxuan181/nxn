@@ -1,8 +1,8 @@
 import pytest
 from unittest.mock import MagicMock, patch
 
-from stock.scrapers.vnstock import VnstockScraper, _fetch_ohlc, _to_vnd
-from stock.model import StockPrice
+from services.stock.scrapers.vnstock import VnstockScraper, _fetch_ohlc, _to_vnd
+from services.stock.model import StockPrice
 
 _SAMPLE_CSV = "ticker,comGroupCode\nHPG,HOSE\nVNM,HOSE\nVCB,HOSE\n"
 
@@ -46,7 +46,7 @@ def test_to_vnd_converts_correctly():
 
 
 def test_fetch_ohlc_returns_stock_price():
-    with patch("stock.scrapers.vnstock.requests.get", return_value=_ohlc_mock()):
+    with patch("services.stock.scrapers.vnstock.requests.get", return_value=_ohlc_mock()):
         result = _fetch_ohlc("HPG", "2026-06-18")
     assert result is not None
     assert result.symbol == "HPG"
@@ -60,27 +60,27 @@ def test_fetch_ohlc_returns_stock_price():
 
 def test_fetch_ohlc_returns_none_when_no_data():
     empty = {"t": [], "o": [], "h": [], "l": [], "c": [], "v": [], "nextTime": 0}
-    with patch("stock.scrapers.vnstock.requests.get", return_value=_ohlc_mock(empty)):
+    with patch("services.stock.scrapers.vnstock.requests.get", return_value=_ohlc_mock(empty)):
         result = _fetch_ohlc("HPG", "2026-06-18")
     assert result is None
 
 
 def test_fetch_ohlc_returns_none_on_network_error():
-    with patch("stock.scrapers.vnstock.requests.get", side_effect=Exception("timeout")):
+    with patch("services.stock.scrapers.vnstock.requests.get", side_effect=Exception("timeout")):
         result = _fetch_ohlc("HPG", "2026-06-18")
     assert result is None
 
 
 def test_get_symbols_parses_csv():
     scraper = VnstockScraper(target_date="2026-06-18")
-    with patch("stock.scrapers.vnstock.requests.get", return_value=_listing_mock()):
+    with patch("services.stock.scrapers.vnstock.requests.get", return_value=_listing_mock()):
         symbols = scraper._get_symbols()
     assert symbols == ["HPG", "VNM", "VCB"]
 
 
 def test_scrape_returns_sorted_results():
     scraper = VnstockScraper(target_date="2026-06-18", max_workers=2)
-    with patch("stock.scrapers.vnstock.requests.get", side_effect=_side_effect_factory()):
+    with patch("services.stock.scrapers.vnstock.requests.get", side_effect=_side_effect_factory()):
         results = scraper.scrape()
     symbols = [r.symbol for r in results]
     assert symbols == sorted(symbols)
@@ -91,7 +91,7 @@ def test_scrape_filters_none_results():
     empty_ohlc = {"t": [], "o": [], "h": [], "l": [], "c": [], "v": [], "nextTime": 0}
     scraper = VnstockScraper(target_date="2026-06-18", max_workers=2)
     with patch(
-        "stock.scrapers.vnstock.requests.get",
+        "services.stock.scrapers.vnstock.requests.get",
         side_effect=_side_effect_factory(ohlc_data=empty_ohlc),
     ):
         results = scraper.scrape()
@@ -106,6 +106,6 @@ def test_scrape_uses_yesterday_as_default_date():
 
 def test_scrape_raises_when_listing_fetch_fails():
     scraper = VnstockScraper(target_date="2026-06-18")
-    with patch("stock.scrapers.vnstock.requests.get", side_effect=Exception("network error")):
+    with patch("services.stock.scrapers.vnstock.requests.get", side_effect=Exception("network error")):
         with pytest.raises(Exception):
             scraper.scrape()

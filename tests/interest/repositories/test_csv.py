@@ -1,8 +1,8 @@
 import csv
 import os
 import pytest
-from interest.repositories.csv import CSVRepository
-from interest.model import InterestRate
+from services.interest.repositories.csv import CSVRepository
+from services.interest.model import InterestRate
 
 
 @pytest.fixture

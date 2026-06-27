@@ -1,6 +1,6 @@
 import pytest
-from stock.repositories.base import BaseStockRepository
-from stock.model import StockPrice
+from services.stock.repositories.base import BaseStockRepository
+from services.stock.model import StockPrice
 
 
 def test_base_stock_repository_cannot_be_instantiated_directly():

@@ -1,6 +1,6 @@
 from unittest.mock import MagicMock
-from stock.runner import StockCrawlRunner
-from stock.model import StockPrice
+from services.stock.runner import StockCrawlRunner
+from services.stock.model import StockPrice
 
 
 def _make_stock(symbol: str) -> StockPrice:

@@ -1,6 +1,6 @@
 from unittest.mock import patch
 
-from stock.model import StockPrice
+from services.stock.model import StockPrice
 
 
 def _make_stock(date_str: str, close: int) -> StockPrice:

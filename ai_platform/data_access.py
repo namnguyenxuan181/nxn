@@ -6,9 +6,9 @@ from contextvars import ContextVar
 from datetime import date, timedelta
 from typing import Dict, List, Optional
 
-from interest.model import InterestRate
-from news.model import NewsArticle
-from stock.model import StockPrice
+from services.interest.model import InterestRate
+from services.news.model import NewsArticle
+from services.stock.model import StockPrice
 
 
 def _data_dir() -> str:

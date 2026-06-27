@@ -1,7 +1,7 @@
 from unittest.mock import MagicMock, patch
 import pytest
-from news.model import NewsArticle
-from news.runner import NewsRunner
+from services.news.model import NewsArticle
+from services.news.runner import NewsRunner
 
 _WITH_KEY = {"ANTHROPIC_API_KEY": "test-key"}
 
@@ -21,7 +21,7 @@ def test_runner_scrapes_all_sources():
     repo = MagicMock()
     repo.load.return_value = []
 
-    with patch("news.runner.analyze_article", return_value=("summary", "positive")):
+    with patch("services.news.runner.analyze_article", return_value=("summary", "positive")):
         with patch.dict("os.environ", _WITH_KEY):
             NewsRunner([scraper_a, scraper_b], repo).run(target_date="2026-06-21")
 
@@ -39,7 +39,7 @@ def test_runner_deduplicates_by_url():
     repo = MagicMock()
     repo.load.return_value = existing
 
-    with patch("news.runner.analyze_article", return_value=("s", "neutral")) as mock_analyze:
+    with patch("services.news.runner.analyze_article", return_value=("s", "neutral")) as mock_analyze:
         with patch.dict("os.environ", _WITH_KEY):
             NewsRunner([scraper], repo).run(target_date="2026-06-21")
 
@@ -53,7 +53,7 @@ def test_runner_saves_merged_results():
     repo = MagicMock()
     repo.load.return_value = existing
 
-    with patch("news.runner.analyze_article", return_value=("s", "positive")):
+    with patch("services.news.runner.analyze_article", return_value=("s", "positive")):
         with patch.dict("os.environ", _WITH_KEY):
             NewsRunner([scraper], repo).run(target_date="2026-06-21")
 
@@ -67,7 +67,7 @@ def test_runner_save_called_once():
     repo = MagicMock()
     repo.load.return_value = []
 
-    with patch("news.runner.analyze_article", return_value=("s", "neutral")):
+    with patch("services.news.runner.analyze_article", return_value=("s", "neutral")):
         with patch.dict("os.environ", _WITH_KEY):
             NewsRunner([scraper], repo).run(target_date="2026-06-21")
 
@@ -80,7 +80,7 @@ def test_runner_skips_analysis_without_api_key():
     repo = MagicMock()
     repo.load.return_value = []
 
-    with patch("news.runner.analyze_article") as mock_analyze:
+    with patch("services.news.runner.analyze_article") as mock_analyze:
         with patch.dict("os.environ", {}, clear=True):
             NewsRunner([scraper], repo).run(target_date="2026-06-21")
 

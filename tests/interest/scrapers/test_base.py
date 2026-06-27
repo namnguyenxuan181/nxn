@@ -1,6 +1,6 @@
 import pytest
-from interest.scrapers.base import BaseScraper
-from interest.model import InterestRate
+from services.interest.scrapers.base import BaseScraper
+from services.interest.model import InterestRate
 
 
 def test_base_scraper_cannot_be_instantiated_directly():

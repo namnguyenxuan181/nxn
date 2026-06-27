@@ -1,5 +1,5 @@
 from unittest.mock import patch, MagicMock
-from news.scrapers.vnexpress import VnExpressScraper
+from services.news.scrapers.vnexpress import VnExpressScraper
 
 _RSS = """<?xml version="1.0" encoding="UTF-8"?>
 <rss version="2.0">
@@ -30,7 +30,7 @@ def _mock_response(content: bytes) -> MagicMock:
 
 
 def test_vnexpress_scrape_returns_articles():
-    with patch("news.scrapers.vnexpress.requests.get", return_value=_mock_response(_RSS)):
+    with patch("services.news.scrapers.vnexpress.requests.get", return_value=_mock_response(_RSS)):
         articles = VnExpressScraper().scrape()
     assert len(articles) == 1
     assert articles[0].source == "vnexpress"
@@ -43,6 +43,6 @@ def test_vnexpress_scrape_returns_articles():
 
 
 def test_vnexpress_scrape_skips_empty_items():
-    with patch("news.scrapers.vnexpress.requests.get", return_value=_mock_response(_RSS)):
+    with patch("services.news.scrapers.vnexpress.requests.get", return_value=_mock_response(_RSS)):
         articles = VnExpressScraper().scrape()
     assert all(a.title and a.url for a in articles)

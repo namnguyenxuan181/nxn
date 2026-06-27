@@ -4,7 +4,7 @@ from datetime import date as _date
 import pandas as pd
 import streamlit as st
 
-from web.data_loader import (
+from services.web.data_loader import (
     available_dates,
     available_news_dates,
     load_interest,
@@ -105,7 +105,7 @@ with tab2:
 
 # ── News ──────────────────────────────────────────────────────────────────────
 with tab3:
-    from news.keywords import KEYWORDS
+    from services.news.keywords import KEYWORDS
 
     news_dates = available_news_dates()
     col1, col2 = st.columns([3, 1])
@@ -122,11 +122,11 @@ with tab3:
     if fetch_btn:
         label = "Fetching and analyzing news…" if os.environ.get("ANTHROPIC_API_KEY") else "Fetching news (no API key — summary/sentiment will be empty)…"
         with st.spinner(label):
-            from news.repositories.json_repo import JSONNewsRepository
-            from news.runner import NewsRunner
-            from news.scrapers.cafef import CafefScraper
-            from news.scrapers.vnexpress import VnExpressScraper
-            from news.scrapers.vietstock import VietstockScraper
+            from services.news.repositories.json_repo import JSONNewsRepository
+            from services.news.runner import NewsRunner
+            from services.news.scrapers.cafef import CafefScraper
+            from services.news.scrapers.vnexpress import VnExpressScraper
+            from services.news.scrapers.vietstock import VietstockScraper
             NewsRunner(
                 [VnExpressScraper(), CafefScraper(), VietstockScraper()],
                 JSONNewsRepository(data_dir=os.path.join(DATA_DIR, "news")),

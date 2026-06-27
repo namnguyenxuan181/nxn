@@ -10,7 +10,7 @@ from ai_platform.chat import stream_chat
 from ai_platform.data_access import get_all_symbols, set_query_user
 from ai_platform.report import generate_report
 from ai_platform.screener import screen_stocks
-from stock.scrapers.intraday import fetch_intraday_ohlc, is_market_open
+from services.stock.scrapers.intraday import fetch_intraday_ohlc, is_market_open
 
 app = FastAPI(title="NXN AI Platform")
 

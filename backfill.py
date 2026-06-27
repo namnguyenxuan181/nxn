@@ -2,8 +2,8 @@
 import os
 from datetime import date, timedelta
 
-from stock.repositories.csv import StockCSVRepository
-from stock.scrapers.vnstock import VnstockScraper
+from services.stock.repositories.csv import StockCSVRepository
+from services.stock.scrapers.vnstock import VnstockScraper
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.path.join(BASE_DIR, "data", "stock")

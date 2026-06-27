@@ -1,6 +1,6 @@
 import pytest
-from stock.scrapers.base import BaseStockScraper
-from stock.model import StockPrice
+from services.stock.scrapers.base import BaseStockScraper
+from services.stock.model import StockPrice
 
 
 def test_base_stock_scraper_cannot_be_instantiated_directly():

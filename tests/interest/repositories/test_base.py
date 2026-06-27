@@ -1,6 +1,6 @@
 import pytest
-from interest.repositories.base import BaseRepository
-from interest.model import InterestRate
+from services.interest.repositories.base import BaseRepository
+from services.interest.model import InterestRate
 
 
 def test_base_repository_cannot_be_instantiated_directly():

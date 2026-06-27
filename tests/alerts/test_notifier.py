@@ -1,10 +1,10 @@
 from unittest.mock import patch, MagicMock
-from alerts.notifier import notify
+from services.alerts.notifier import notify
 
 
 def test_notify_calls_osascript_on_darwin():
-    with patch("alerts.notifier.sys") as mock_sys, \
-         patch("alerts.notifier.subprocess.run") as mock_run:
+    with patch("services.alerts.notifier.sys") as mock_sys, \
+         patch("services.alerts.notifier.subprocess.run") as mock_run:
         mock_sys.platform = "darwin"
         notify("Test Title", "Test Body")
     mock_run.assert_called_once()
@@ -15,15 +15,15 @@ def test_notify_calls_osascript_on_darwin():
 
 
 def test_notify_noop_on_non_darwin():
-    with patch("alerts.notifier.sys") as mock_sys, \
-         patch("alerts.notifier.subprocess.run") as mock_run:
+    with patch("services.alerts.notifier.sys") as mock_sys, \
+         patch("services.alerts.notifier.subprocess.run") as mock_run:
         mock_sys.platform = "linux"
         notify("Title", "Body")
     mock_run.assert_not_called()
 
 
 def test_notify_silently_ignores_exception():
-    with patch("alerts.notifier.sys") as mock_sys, \
-         patch("alerts.notifier.subprocess.run", side_effect=Exception("fail")):
+    with patch("services.alerts.notifier.sys") as mock_sys, \
+         patch("services.alerts.notifier.subprocess.run", side_effect=Exception("fail")):
         mock_sys.platform = "darwin"
         notify("Title", "Body")  # must not raise

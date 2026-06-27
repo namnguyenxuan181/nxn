@@ -2,8 +2,8 @@ import csv
 import os
 import pytest
 
-from stock.repositories.csv import StockCSVRepository
-from stock.model import StockPrice
+from services.stock.repositories.csv import StockCSVRepository
+from services.stock.model import StockPrice
 
 
 def _make_records():

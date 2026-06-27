@@ -1,4 +1,4 @@
-from news.model import NewsArticle
+from services.news.model import NewsArticle
 
 
 def test_news_article_defaults():

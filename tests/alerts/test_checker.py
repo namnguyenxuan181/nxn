@@ -1,7 +1,7 @@
 import pytest
 import pandas as pd
-from news.model import NewsArticle
-from alerts.checker import check_price_alerts, check_news_alerts
+from services.news.model import NewsArticle
+from services.alerts.checker import check_price_alerts, check_news_alerts
 
 
 def _df(rows):

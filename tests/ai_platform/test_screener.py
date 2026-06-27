@@ -1,8 +1,8 @@
 import json
 from unittest.mock import patch
 
-from news.model import NewsArticle
-from stock.model import StockPrice
+from services.news.model import NewsArticle
+from services.stock.model import StockPrice
 
 
 def _stock(symbol: str, close: int) -> StockPrice:

@@ -1,5 +1,5 @@
 from unittest.mock import patch, MagicMock
-from news.scrapers.vietstock import VietstockScraper
+from services.news.scrapers.vietstock import VietstockScraper
 
 _RSS = """<?xml version="1.0" encoding="utf-8"?>
 <rss version="2.0">
@@ -24,7 +24,7 @@ def _mock_response(content: bytes) -> MagicMock:
 
 
 def test_vietstock_scrape_returns_articles():
-    with patch("news.scrapers.vietstock.requests.get", return_value=_mock_response(_RSS)):
+    with patch("services.news.scrapers.vietstock.requests.get", return_value=_mock_response(_RSS)):
         articles = VietstockScraper().scrape()
     assert len(articles) == 1
     assert articles[0].source == "vietstock"

@@ -1,7 +1,7 @@
 import json
 import os
-from news.model import NewsArticle
-from news.repositories.json_repo import JSONNewsRepository
+from services.news.model import NewsArticle
+from services.news.repositories.json_repo import JSONNewsRepository
 
 
 def _make_article(source: str, title: str, url: str) -> NewsArticle:

@@ -3,12 +3,12 @@ import os
 import pandas as pd
 from datetime import date, datetime, timedelta, timezone
 
-from interest.runner import CrawlRunner
-from interest.scrapers.multi_rate import MultiRateScraper
-from interest.repositories.csv import CSVRepository
-from stock.runner import StockCrawlRunner
-from stock.scrapers.vnstock import VnstockScraper
-from stock.repositories.csv import StockCSVRepository
+from services.interest.runner import CrawlRunner
+from services.interest.scrapers.multi_rate import MultiRateScraper
+from services.interest.repositories.csv import CSVRepository
+from services.stock.runner import StockCrawlRunner
+from services.stock.scrapers.vnstock import VnstockScraper
+from services.stock.repositories.csv import StockCSVRepository
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.path.join(BASE_DIR, "data")
@@ -42,11 +42,11 @@ def main():
         if today_records:
             stock_repo.save(today_records)
 
-    from news.repositories.json_repo import JSONNewsRepository
-    from news.runner import NewsRunner
-    from news.scrapers.cafef import CafefScraper
-    from news.scrapers.vnexpress import VnExpressScraper
-    from news.scrapers.vietstock import VietstockScraper
+    from services.news.repositories.json_repo import JSONNewsRepository
+    from services.news.runner import NewsRunner
+    from services.news.scrapers.cafef import CafefScraper
+    from services.news.scrapers.vnexpress import VnExpressScraper
+    from services.news.scrapers.vietstock import VietstockScraper
     news_repo = JSONNewsRepository(data_dir=os.path.join(DATA_DIR, "news"))
     NewsRunner(
         [VnExpressScraper(), CafefScraper(), VietstockScraper()],
@@ -67,9 +67,9 @@ def main():
     if not watchlist:
         return
 
-    from alerts.checker import check_price_alerts, check_news_alerts
-    from alerts.notifier import notify
-    from stock.scrapers.intraday import fetch_intraday_prices, is_market_open
+    from services.alerts.checker import check_price_alerts, check_news_alerts
+    from services.alerts.notifier import notify
+    from services.stock.scrapers.intraday import fetch_intraday_prices, is_market_open
 
     today_str = date.today().strftime("%Y-%m-%d")
     yest_str = (date.today() - timedelta(days=1)).strftime("%Y-%m-%d")

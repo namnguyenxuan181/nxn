@@ -1,5 +1,5 @@
 from unittest.mock import patch, MagicMock
-from news.scrapers.cafef import CafefScraper
+from services.news.scrapers.cafef import CafefScraper
 
 _RSS = """<?xml version="1.0" encoding="UTF-8"?>
 <rss version="2.0">
@@ -24,7 +24,7 @@ def _mock_response(content: bytes) -> MagicMock:
 
 
 def test_cafef_scrape_returns_articles():
-    with patch("news.scrapers.cafef.requests.get", return_value=_mock_response(_RSS)):
+    with patch("services.news.scrapers.cafef.requests.get", return_value=_mock_response(_RSS)):
         articles = CafefScraper().scrape()
     assert len(articles) == 1
     assert articles[0].source == "cafef"

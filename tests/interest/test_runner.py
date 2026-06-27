@@ -1,6 +1,6 @@
 from unittest.mock import MagicMock
-from interest.runner import CrawlRunner
-from interest.model import InterestRate
+from services.interest.runner import CrawlRunner
+from services.interest.model import InterestRate
 
 
 def _make_record(bank: str) -> InterestRate:
