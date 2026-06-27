@@ -2,6 +2,7 @@ import csv
 import glob
 import json
 import os
+from contextvars import ContextVar
 from datetime import date, timedelta
 from typing import Dict, List, Optional
 
@@ -26,6 +27,16 @@ def _float_or_none(val: str) -> Optional[float]:
     return float(val) if val and val.strip() else None
 
 
+# ── User context — set once per request in main.py ───────────────────────────
+# ContextVar propagates automatically across async/sync calls in the same request.
+_query_user: ContextVar[str] = ContextVar("query_user", default="ai_platform")
+
+
+def set_query_user(username: str) -> None:
+    """Call this at the start of each request with the authenticated username."""
+    _query_user.set(username)
+
+
 # ── Trino helpers ─────────────────────────────────────────────────────────────
 
 def _trino_query(sql: str) -> list:
@@ -33,7 +44,7 @@ def _trino_query(sql: str) -> list:
     conn = trino.dbapi.connect(
         host=_trino_host(),
         port=int(os.environ.get("TRINO_PORT", 8080)),
-        user="ai_platform",
+        user=_query_user.get(),   # ← dùng username thực, OPA enforce đúng quyền
         catalog="iceberg",
         schema="mart",
         http_scheme="http",

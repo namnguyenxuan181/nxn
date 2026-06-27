@@ -7,7 +7,7 @@ from pydantic import BaseModel
 
 from ai_platform.auth import CurrentUser, auth_config, get_current_user, require_role
 from ai_platform.chat import stream_chat
-from ai_platform.data_access import get_all_symbols
+from ai_platform.data_access import get_all_symbols, set_query_user
 from ai_platform.report import generate_report
 from ai_platform.screener import screen_stocks
 from stock.scrapers.intraday import fetch_intraday_ohlc, is_market_open
@@ -48,6 +48,8 @@ def chat(
         require_role("ai_user", "analyst", "data_engineer", "admin")
     ),
 ):
+    if user:
+        set_query_user(user.username)
     def generate():
         for chunk in stream_chat(req.message, req.history):
             yield f"data: {chunk}\n\n"
@@ -60,6 +62,8 @@ def report(
     symbol: str,
     user: Optional[CurrentUser] = Depends(require_role("analyst", "data_engineer", "admin")),
 ):
+    if user:
+        set_query_user(user.username)
     result = generate_report(symbol.upper())
     if result is None:
         raise HTTPException(status_code=404, detail=f"No data available for {symbol.upper()}")
@@ -71,6 +75,8 @@ def screen(
     req: ScreenRequest,
     user: Optional[CurrentUser] = Depends(require_role("analyst", "data_engineer", "admin")),
 ):
+    if user:
+        set_query_user(user.username)
     result = screen_stocks(req.query)
     if result.get("error") == "Could not parse query":
         raise HTTPException(status_code=400, detail=result["error"])
