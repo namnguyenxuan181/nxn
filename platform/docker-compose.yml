@@ -53,7 +53,10 @@ services:
       - "19120:19120"
     environment:
       QUARKUS_HTTP_PORT: "19120"
-      NESSIE_VERSION_STORE_TYPE: IN_MEMORY
+      NESSIE_VERSION_STORE_TYPE: ROCKSDB
+      NESSIE_STORE_ROCKS_DB_PATH: /nessie/rocksdb
+    volumes:
+      - nessie_data:/nessie/rocksdb
     healthcheck:
       test: ["CMD", "curl", "-sf", "http://localhost:19120/q/health"]
       interval: 10s
@@ -117,6 +120,7 @@ services:
       TRINO_HOST: trino
       TRINO_PORT: "8080"
       DATA_DIR: /opt/nxn/data
+    command: webserver
     ports:
       - "8082:8080"
     volumes:
@@ -187,6 +191,7 @@ services:
 
 volumes:
   minio_data:
+  nessie_data:
   postgres_data:
   superset_data:
   chroma_data:

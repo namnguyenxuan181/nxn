@@ -14,6 +14,10 @@ def _data_dir() -> str:
     return os.environ.get("DATA_DIR", "./data")
 
 
+def _trino_host() -> Optional[str]:
+    return os.environ.get("TRINO_HOST")
+
+
 def _int_or_none(val: str) -> Optional[int]:
     return int(val) if val and val.strip() else None
 
@@ -21,6 +25,25 @@ def _int_or_none(val: str) -> Optional[int]:
 def _float_or_none(val: str) -> Optional[float]:
     return float(val) if val and val.strip() else None
 
+
+# ── Trino helpers ─────────────────────────────────────────────────────────────
+
+def _trino_query(sql: str) -> list:
+    import trino
+    conn = trino.dbapi.connect(
+        host=_trino_host(),
+        port=int(os.environ.get("TRINO_PORT", 8080)),
+        user="ai_platform",
+        catalog="iceberg",
+        schema="mart",
+        http_scheme="http",
+    )
+    cur = conn.cursor()
+    cur.execute(sql)
+    return cur.fetchall()
+
+
+# ── CSV helpers ───────────────────────────────────────────────────────────────
 
 def _read_stock_csv(path: str) -> List[StockPrice]:
     rows = []
@@ -58,7 +81,17 @@ def _get_stock_by_index(index: int, symbols: List[str]) -> Dict[str, StockPrice]
     return result
 
 
+# ── Public API — routes to Trino when TRINO_HOST is set, else CSV ─────────────
+
 def get_all_symbols() -> List[str]:
+    if _trino_host():
+        try:
+            rows = _trino_query(
+                "SELECT DISTINCT symbol FROM iceberg.raw.stock_prices ORDER BY symbol"
+            )
+            return [r[0] for r in rows]
+        except Exception:
+            pass
     files = _sorted_stock_csvs()
     if not files:
         return []
@@ -66,14 +99,71 @@ def get_all_symbols() -> List[str]:
 
 
 def get_latest_stock(symbols: List[str]) -> Dict[str, StockPrice]:
+    if _trino_host():
+        try:
+            sym_list = ", ".join(f"'{s}'" for s in symbols) if symbols else "''"
+            rows = _trino_query(f"""
+                SELECT symbol, open, high, low, close, volume, trade_date
+                FROM iceberg.mart.mart_stock_daily
+                WHERE trade_date = (SELECT MAX(trade_date) FROM iceberg.mart.mart_stock_daily)
+                  AND symbol IN ({sym_list})
+            """)
+            return {
+                r[0]: StockPrice(
+                    date=str(r[6]), symbol=r[0],
+                    open=r[1], high=r[2], low=r[3], close=r[4], volume=r[5],
+                )
+                for r in rows
+            }
+        except Exception:
+            pass
     return _get_stock_by_index(0, symbols)
 
 
 def get_previous_stock(symbols: List[str]) -> Dict[str, StockPrice]:
+    if _trino_host():
+        try:
+            sym_list = ", ".join(f"'{s}'" for s in symbols) if symbols else "''"
+            rows = _trino_query(f"""
+                SELECT symbol, open, high, low, close, volume, trade_date
+                FROM iceberg.mart.mart_stock_daily
+                WHERE trade_date = (
+                    SELECT MAX(trade_date) FROM iceberg.mart.mart_stock_daily
+                    WHERE trade_date < (SELECT MAX(trade_date) FROM iceberg.mart.mart_stock_daily)
+                )
+                  AND symbol IN ({sym_list})
+            """)
+            return {
+                r[0]: StockPrice(
+                    date=str(r[6]), symbol=r[0],
+                    open=r[1], high=r[2], low=r[3], close=r[4], volume=r[5],
+                )
+                for r in rows
+            }
+        except Exception:
+            pass
     return _get_stock_by_index(1, symbols)
 
 
 def get_stock_history(symbol: str, days: int = 10) -> List[StockPrice]:
+    if _trino_host():
+        try:
+            rows = _trino_query(f"""
+                SELECT symbol, open, high, low, close, volume, trade_date
+                FROM iceberg.mart.mart_stock_daily
+                WHERE symbol = '{symbol}'
+                ORDER BY trade_date DESC
+                LIMIT {days}
+            """)
+            return [
+                StockPrice(
+                    date=str(r[6]), symbol=r[0],
+                    open=r[1], high=r[2], low=r[3], close=r[4], volume=r[5],
+                )
+                for r in reversed(rows)
+            ]
+        except Exception:
+            pass
     files = _sorted_stock_csvs()[:days]
     result = []
     for path in reversed(files):
@@ -85,6 +175,31 @@ def get_stock_history(symbol: str, days: int = 10) -> List[StockPrice]:
 
 
 def get_recent_news(symbols: List[str], days: int = 7) -> List[NewsArticle]:
+    if _trino_host():
+        try:
+            sym_conditions = " OR ".join(
+                f"(UPPER(title) LIKE '%{s}%' OR UPPER(description) LIKE '%{s}%')"
+                for s in symbols
+            ) if symbols else "1=1"
+            rows = _trino_query(f"""
+                SELECT source, title, url, published_at, description, sentiment
+                FROM iceberg.raw.news
+                WHERE ({sym_conditions})
+                  AND published_at >= CAST(CURRENT_DATE - INTERVAL '{days}' DAY AS VARCHAR)
+                ORDER BY published_at DESC
+                LIMIT 200
+            """)
+            return [
+                NewsArticle(
+                    source=r[0] or "", title=r[1] or "", url=r[2] or "",
+                    published_at=r[3] or "", description=r[4] or "",
+                    summary="", sentiment=r[5] or "neutral",
+                )
+                for r in rows
+            ]
+        except Exception:
+            pass
+
     sym_set = {s.upper() for s in symbols}
     articles = []
     for i in range(days):
@@ -116,6 +231,24 @@ def get_recent_news(symbols: List[str], days: int = 7) -> List[NewsArticle]:
 
 
 def get_interest_rates() -> List[InterestRate]:
+    if _trino_host():
+        try:
+            rows = _trino_query("""
+                SELECT bank, channel, rate_3m, rate_6m, rate_12m, rate_24m, fetched_at
+                FROM iceberg.raw.interest_rates
+                WHERE fetched_at = (SELECT MAX(fetched_at) FROM iceberg.raw.interest_rates)
+            """)
+            return [
+                InterestRate(
+                    date=r[6] or "", bank=r[0] or "", channel=r[1] or "",
+                    rate_1m=None, rate_3m=r[2], rate_6m=r[3],
+                    rate_12m=r[4], rate_18m=None, rate_24m=r[5], rate_36m=None,
+                )
+                for r in rows
+            ]
+        except Exception:
+            pass
+
     pattern = os.path.join(_data_dir(), "interest", "interest_*.csv")
     files = sorted(glob.glob(pattern), reverse=True)
     if not files:

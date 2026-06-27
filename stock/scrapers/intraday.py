@@ -17,17 +17,16 @@ def is_market_open() -> bool:
     return 9 <= now.hour < 15
 
 
-def _fetch_last_price(symbol: str) -> Optional[tuple]:
-    now = datetime.now(_VN_TZ)
-    today = now.date()
+def _trading_window() -> tuple:
+    today = datetime.now(_VN_TZ).date()
     start = datetime(today.year, today.month, today.day, 9, 0, tzinfo=_VN_TZ)
-    end = datetime(today.year, today.month, today.day, 15, 30, tzinfo=_VN_TZ)
-    params = {
-        "symbol": symbol,
-        "resolution": "1",
-        "from": int(start.timestamp()),
-        "to": int(end.timestamp()),
-    }
+    end   = datetime(today.year, today.month, today.day, 15, 30, tzinfo=_VN_TZ)
+    return int(start.timestamp()), int(end.timestamp())
+
+
+def _fetch_last_price(symbol: str) -> Optional[tuple]:
+    t_from, t_to = _trading_window()
+    params = {"symbol": symbol, "resolution": "1", "from": t_from, "to": t_to}
     try:
         resp = requests.get(_OHLC_URL, params=params, headers=_HEADERS, timeout=10)
         resp.raise_for_status()
@@ -41,16 +40,8 @@ def _fetch_last_price(symbol: str) -> Optional[tuple]:
 
 def fetch_intraday_ohlc(symbol: str, resolution: int = 5) -> List[Dict]:
     """Return OHLC bars for today. resolution: 1, 5, or 10 (minutes)."""
-    now = datetime.now(_VN_TZ)
-    today = now.date()
-    start = datetime(today.year, today.month, today.day, 9, 0, tzinfo=_VN_TZ)
-    end = datetime(today.year, today.month, today.day, 15, 30, tzinfo=_VN_TZ)
-    params = {
-        "symbol": symbol,
-        "resolution": str(resolution),
-        "from": int(start.timestamp()),
-        "to": int(end.timestamp()),
-    }
+    t_from, t_to = _trading_window()
+    params = {"symbol": symbol, "resolution": str(resolution), "from": t_from, "to": t_to}
     try:
         resp = requests.get(_OHLC_URL, params=params, headers=_HEADERS, timeout=15)
         resp.raise_for_status()
@@ -59,10 +50,10 @@ def fetch_intraday_ohlc(symbol: str, resolution: int = 5) -> List[Dict]:
         if not closes:
             return []
         timestamps = data.get("t", [])
-        opens = data.get("o", [])
-        highs = data.get("h", [])
-        lows = data.get("l", [])
-        volumes = data.get("v", [])
+        opens     = data.get("o", [])
+        highs     = data.get("h", [])
+        lows      = data.get("l", [])
+        volumes   = data.get("v", [])
         return [
             {
                 "t": timestamps[i],

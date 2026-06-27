@@ -18,7 +18,7 @@ fi
 
 # 2. Khởi động services
 echo "[2/5] Starting platform services..."
-docker compose up -d minio metastore trino postgres
+docker compose up -d minio nessie trino postgres
 echo "  Waiting 30s for services to initialize..."
 sleep 30
 

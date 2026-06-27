@@ -13,16 +13,10 @@ import time
 import pandas as pd
 import trino
 
-# ── Args ──────────────────────────────────────────────────────────────────────
-parser = argparse.ArgumentParser()
-parser.add_argument("--data-dir",   default=os.environ.get("DATA_DIR", "../../data"))
-parser.add_argument("--trino-host", default=os.environ.get("TRINO_HOST", "localhost"))
-parser.add_argument("--trino-port", type=int, default=int(os.environ.get("TRINO_PORT", 8080)))
-args = parser.parse_args()
-
-DATA_DIR = args.data_dir
-TRINO_HOST = args.trino_host
-TRINO_PORT = args.trino_port
+# Module-level globals — set in main() after argparse
+DATA_DIR: str = ""
+TRINO_HOST: str = ""
+TRINO_PORT: int = 8080
 
 
 # ── Trino connection ──────────────────────────────────────────────────────────
@@ -47,16 +41,26 @@ def execute(cur, sql: str, desc: str = ""):
         pass
 
 
-def executemany(cur, sql: str, rows: list, batch: int = 500):
+def _fmt(v) -> str:
+    if v is None:
+        return "NULL"
+    if isinstance(v, (int, float)):
+        return str(v)
+    return "'" + str(v).replace("'", "''") + "'"
+
+
+def executemany(cur, sql: str, rows: list, batch: int = 50):
     for i in range(0, len(rows), batch):
         chunk = rows[i : i + batch]
         values = ", ".join(
-            "(" + ", ".join(("NULL" if v is None else f"'{str(v).replace(chr(39), chr(39)*2)}'") for v in row) + ")"
+            "(" + ", ".join(_fmt(v) for v in row) + ")"
             for row in chunk
         )
-        cur.execute(sql.replace("__VALUES__", values))
+        conn = connect()
+        c = conn.cursor()
+        c.execute(sql.replace("__VALUES__", values))
         try:
-            cur.fetchall()
+            c.fetchall()
         except Exception:
             pass
         print(f"    inserted {min(i + batch, len(rows))}/{len(rows)} rows", end="\r")
@@ -116,13 +120,28 @@ def setup_schema(cur):
 
 
 # ── Ingest functions ──────────────────────────────────────────────────────────
+def _to_int(v):
+    if not pd.notna(v):
+        return None
+    if isinstance(v, float) and v == int(v):
+        return int(v)
+    return v
+
+
+def _to_float(v):
+    try:
+        f = float(v)
+        return None if pd.isna(f) else f
+    except (TypeError, ValueError):
+        return None
+
+
 def ingest_stocks(cur):
     files = sorted(glob.glob(os.path.join(DATA_DIR, "stock", "stock_*.csv")))
     if not files:
         print("  ! No stock CSV files found")
         return
 
-    # Truncate để ingest lại toàn bộ (demo)
     execute(cur, "DELETE FROM iceberg.raw.stock_prices WHERE 1=1", "truncate stock_prices")
 
     total = 0
@@ -133,7 +152,7 @@ def ingest_stocks(cur):
         df = df.dropna(subset=["symbol", "close"])
         df["date"] = date_str
         df = df[["date", "symbol", "open", "high", "low", "close", "volume"]]
-        rows = [tuple(str(v) if pd.notna(v) else None for v in row) for row in df.itertuples(index=False)]
+        rows = [tuple(_to_int(v) for v in row) for row in df.itertuples(index=False)]
         if rows:
             executemany(cur, "INSERT INTO iceberg.raw.stock_prices VALUES __VALUES__", rows)
             total += len(rows)
@@ -153,16 +172,17 @@ def ingest_news(cur):
     for f in files:
         with open(f, encoding="utf-8") as fh:
             articles = json.load(fh)
-        rows = []
-        for a in articles:
-            rows.append((
+        rows = [
+            (
                 a.get("source"),
                 a.get("title"),
                 a.get("url"),
                 a.get("published_at"),
                 a.get("description"),
                 a.get("sentiment"),
-            ))
+            )
+            for a in articles
+        ]
         if rows:
             executemany(cur, "INSERT INTO iceberg.raw.news VALUES __VALUES__", rows)
             total += len(rows)
@@ -181,14 +201,15 @@ def ingest_interest_rates(cur):
     for f in files:
         date_str = os.path.basename(f).replace("interest_", "").replace(".csv", "")
         df = pd.read_csv(f)
-        rows = []
-        for _, row in df.iterrows():
-            rows.append((
+        rows = [
+            (
                 row.get("bank"), row.get("channel"),
-                row.get("rate_3m"), row.get("rate_6m"),
-                row.get("rate_12m"), row.get("rate_24m"),
+                _to_float(row.get("rate_3m")), _to_float(row.get("rate_6m")),
+                _to_float(row.get("rate_12m")), _to_float(row.get("rate_24m")),
                 date_str,
-            ))
+            )
+            for _, row in df.iterrows()
+        ]
         if rows:
             executemany(cur, "INSERT INTO iceberg.raw.interest_rates VALUES __VALUES__", rows)
         print(f"  {date_str}: {len(rows)} rows")
@@ -197,7 +218,7 @@ def ingest_interest_rates(cur):
 # ── Main ──────────────────────────────────────────────────────────────────────
 def wait_for_trino(max_retries: int = 20):
     print(f"Waiting for Trino at {TRINO_HOST}:{TRINO_PORT} ...")
-    for i in range(max_retries):
+    for _ in range(max_retries):
         try:
             conn = connect()
             cur = conn.cursor()
@@ -212,6 +233,18 @@ def wait_for_trino(max_retries: int = 20):
 
 
 def main():
+    global DATA_DIR, TRINO_HOST, TRINO_PORT
+
+    parser = argparse.ArgumentParser(description="Ingest CSV/JSON → Iceberg via Trino")
+    parser.add_argument("--data-dir",   default=os.environ.get("DATA_DIR", "../../data"))
+    parser.add_argument("--trino-host", default=os.environ.get("TRINO_HOST", "localhost"))
+    parser.add_argument("--trino-port", type=int, default=int(os.environ.get("TRINO_PORT", 8080)))
+    args = parser.parse_args()
+
+    DATA_DIR   = args.data_dir
+    TRINO_HOST = args.trino_host
+    TRINO_PORT = args.trino_port
+
     wait_for_trino()
     conn = connect()
     cur = conn.cursor()

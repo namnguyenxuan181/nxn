@@ -1,2 +1,0 @@
-Pytest: No tests collected
-[full output: ~/Library/Application Support/rtk/tee/1781837703_pytest.log]

@@ -16,7 +16,8 @@
       "WebFetch(domain:fireant.vn)",
       "Bash(rtk curl *)",
       "Bash(curl -s -I https://restv2.fireant.vn/symbols/top -H 'Accept: application/json' -A Mozilla/5.0)",
-      "Bash(curl -s https://restv2.fireant.vn/symbols/top -H 'Accept: application/json' -A Mozilla/5.0)"
+      "Bash(curl -s https://restv2.fireant.vn/symbols/top -H 'Accept: application/json' -A Mozilla/5.0)",
+      "Bash(rtk pip *)"
     ]
   }
 }
