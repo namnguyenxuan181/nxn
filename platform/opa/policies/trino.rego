@@ -1,5 +1,7 @@
 package trino
 
+import rego.v1
+
 # User → roles mapping
 # Thêm user mới vào đây hoặc cập nhật qua OPA data API
 roles_map := {
@@ -14,11 +16,11 @@ roles_map := {
 }
 
 # Helpers
-has_role(user, role) {
+has_role(user, role) if {
     roles_map[user][role]
 }
 
-known_user(user) {
+known_user(user) if {
     roles_map[user]
 }
 
@@ -26,12 +28,12 @@ known_user(user) {
 default allow := false
 
 # ── Admin: full access ──────────────────────────────────────────────────────────
-allow {
+allow if {
     has_role(input.context.identity.user, "admin")
 }
 
 # ── All known users: meta/listing operations ────────────────────────────────────
-allow {
+allow if {
     known_user(input.context.identity.user)
     meta_ops := {
         "ExecuteQuery",
@@ -45,7 +47,7 @@ allow {
 }
 
 # ── Data engineer: full CRUD on iceberg ────────────────────────────────────────
-allow {
+allow if {
     has_role(input.context.identity.user, "data_engineer")
     input.action.resource.table.catalogName == "iceberg"
     write_ops := {
@@ -57,7 +59,7 @@ allow {
     write_ops[input.action.operation]
 }
 
-allow {
+allow if {
     has_role(input.context.identity.user, "data_engineer")
     input.action.resource.schema.catalogName == "iceberg"
     schema_ops := {"CreateSchema", "DropSchema"}
@@ -65,7 +67,7 @@ allow {
 }
 
 # ── Analyst: read-only on iceberg.mart ─────────────────────────────────────────
-allow {
+allow if {
     has_role(input.context.identity.user, "analyst")
     input.action.resource.table.catalogName == "iceberg"
     input.action.resource.table.schemaName == "mart"
@@ -74,7 +76,7 @@ allow {
 }
 
 # ── tpch: read for all known users (testing / demos) ───────────────────────────
-allow {
+allow if {
     known_user(input.context.identity.user)
     input.action.resource.table.catalogName == "tpch"
     tpch_ops := {"SelectFromColumns", "FilterColumns"}

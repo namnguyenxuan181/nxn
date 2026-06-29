@@ -1,24 +1,21 @@
-import os
 import logging
 from flask_appbuilder.security.manager import AUTH_OAUTH
-from superset.security import SupersetSecurityManager
+from airflow.providers.fab.auth_manager.security_manager.override import (
+    FabAirflowSecurityManagerOverride,
+)
 
 log = logging.getLogger(__name__)
 
-SECRET_KEY = os.environ.get("SUPERSET_SECRET_KEY", "nxn-superset-secret-2026")
-SQLALCHEMY_DATABASE_URI = "sqlite:////app/superset_home/superset.db"
-
-# ── OAuth via Keycloak ──────────────────────────────────────────────────────────
 AUTH_TYPE = AUTH_OAUTH
 AUTH_USER_REGISTRATION = True
-AUTH_USER_REGISTRATION_ROLE = "Gamma"
+AUTH_USER_REGISTRATION_ROLE = "Viewer"
 AUTH_ROLES_SYNC_AT_LOGIN = True
 AUTH_ROLES_MAPPING = {
     "admin":         ["Admin"],
-    "data_engineer": ["Alpha"],
-    "analyst":       ["Gamma"],
-    "ai_user":       ["Gamma"],
-    "viewer":        ["Gamma"],
+    "data_engineer": ["Op"],
+    "analyst":       ["Viewer"],
+    "ai_user":       ["Viewer"],
+    "viewer":        ["Viewer"],
 }
 
 OAUTH_PROVIDERS = [{
@@ -26,8 +23,8 @@ OAUTH_PROVIDERS = [{
     "token_key": "access_token",
     "icon": "fa-key",
     "remote_app": {
-        "client_id": "superset",
-        "client_secret": "superset-secret",
+        "client_id": "airflow",
+        "client_secret": "airflow-secret",
         "authorize_url": "http://localhost:8090/realms/nxn/protocol/openid-connect/auth",
         "access_token_url": "http://keycloak:8080/realms/nxn/protocol/openid-connect/token",
         "api_base_url":     "http://keycloak:8080/realms/nxn/protocol/",
@@ -37,11 +34,14 @@ OAUTH_PROVIDERS = [{
 }]
 
 
-class NxnSecurityManager(SupersetSecurityManager):
+class NxnSecurityManager(FabAirflowSecurityManagerOverride):
     def get_oauth_user_info(self, provider, resp):
         if provider == "keycloak":
+            # Authlib 1.x fetches userinfo during authorize_access_token() and stores
+            # it in resp['userinfo']. Use that to avoid cross-origin token rejection.
             data = dict(resp.get("userinfo") or {})
             if not data:
+                # Fallback: decode claims from id_token
                 import json as _json, base64 as _b64
                 id_token = resp.get("id_token", "")
                 if id_token:
@@ -60,22 +60,4 @@ class NxnSecurityManager(SupersetSecurityManager):
         return super().get_oauth_user_info(provider, resp)
 
 
-CUSTOM_SECURITY_MANAGER = NxnSecurityManager
-
-# ── iframe embedding ────────────────────────────────────────────────────────────
-WTF_CSRF_ENABLED = False
-SESSION_COOKIE_SAMESITE = None
-SESSION_COOKIE_SECURE = False
-SESSION_COOKIE_HTTPONLY = False
-HTTP_HEADERS = {}
-TALISMAN_ENABLED = False
-
-FEATURE_FLAGS = {
-    "ENABLE_TEMPLATE_PROCESSING": True,
-    "DASHBOARD_NATIVE_FILTERS": True,
-    "SQLLAB_BACKEND_PERSISTENCE": False,
-}
-
-CACHE_CONFIG      = {"CACHE_TYPE": "SimpleCache", "CACHE_DEFAULT_TIMEOUT": 300}
-DATA_CACHE_CONFIG = {"CACHE_TYPE": "SimpleCache", "CACHE_DEFAULT_TIMEOUT": 300}
-RESULTS_BACKEND   = None
+SECURITY_MANAGER_CLASS = NxnSecurityManager

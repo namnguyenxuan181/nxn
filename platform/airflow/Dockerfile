@@ -7,6 +7,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 USER airflow
 RUN pip install --no-cache-dir \
+    "apache-airflow-providers-trino" \
+    --constraint "https://raw.githubusercontent.com/apache/airflow/constraints-2.9.3/constraints-3.11.txt"
+
+RUN pip install --no-cache-dir \
     dbt-core==1.8.3 \
     dbt-trino==1.8.1 \
     trino==0.328.0 \

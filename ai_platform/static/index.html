@@ -209,6 +209,14 @@ function logout() {
 async function _initAuth() {
   _loginModal = new bootstrap.Modal(document.getElementById('loginModal'));
 
+  // Accept token injected by the portal via URL hash
+  const _hp = new URLSearchParams(location.hash.replace(/^#/, ''));
+  const _pt = _hp.get('portal-token');
+  if (_pt) {
+    localStorage.setItem('nxn_token', _pt);
+    history.replaceState(null, '', location.pathname + location.search);
+  }
+
   try {
     const resp = await fetch('/api/auth');
     _authCfg = await resp.json();

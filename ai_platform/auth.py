@@ -87,15 +87,9 @@ class CurrentUser:
 async def get_current_user(
     creds: Optional[HTTPAuthorizationCredentials] = Depends(_bearer),
 ) -> Optional["CurrentUser"]:
-    """Return CurrentUser if auth is enabled and token is valid, else None."""
-    if not auth_enabled():
+    """Return CurrentUser if a valid token is present, else None (anonymous OK)."""
+    if not auth_enabled() or not creds:
         return None
-    if not creds:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Not authenticated",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
     payload = _decode_token(creds.credentials)
     username = payload.get("preferred_username") or payload.get("sub", "unknown")
     roles: List[str] = payload.get("realm_access", {}).get("roles", [])
