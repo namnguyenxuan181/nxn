@@ -253,6 +253,8 @@ services:
       TRINO_PORT: "8080"
       CHROMADB_HOST: chromadb
       CHROMADB_PORT: "8000"
+      GOOGLE_API_KEY: ${GOOGLE_API_KEY:-}
+      GOOGLE_MODEL: ${GOOGLE_MODEL:-gemini-2.5-flash}
       DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
       DEEPSEEK_MODEL: ${DEEPSEEK_MODEL:-deepseek-chat}
       DATA_DIR: /app/data

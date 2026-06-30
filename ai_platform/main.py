@@ -8,6 +8,7 @@ from pydantic import BaseModel
 from ai_platform.auth import CurrentUser, auth_config, get_current_user, require_role
 from ai_platform.chat import stream_chat
 from ai_platform.data_access import get_all_symbols, set_query_user
+from ai_platform.permissions import filter_symbols
 from ai_platform.report import generate_report
 from ai_platform.screener import screen_stocks
 from services.stock.scrapers.intraday import fetch_intraday_ohlc, is_market_open
@@ -51,7 +52,7 @@ def chat(
     if user:
         set_query_user(user.username)
     def generate():
-        for chunk in stream_chat(req.message, req.history):
+        for chunk in stream_chat(req.message, req.history, user=user):
             yield f"data: {chunk}\n\n"
         yield "data: [DONE]\n\n"
     return StreamingResponse(generate(), media_type="text/event-stream")
@@ -64,9 +65,13 @@ def report(
 ):
     if user:
         set_query_user(user.username)
-    result = generate_report(symbol.upper())
+    sym = symbol.upper()
+    _, blocked = filter_symbols([sym], user)
+    if blocked:
+        raise HTTPException(status_code=403, detail=f"Không có quyền truy vấn {sym}")
+    result = generate_report(sym)
     if result is None:
-        raise HTTPException(status_code=404, detail=f"No data available for {symbol.upper()}")
+        raise HTTPException(status_code=404, detail=f"No data available for {sym}")
     return result
 
 

@@ -1,8 +1,12 @@
 import re
-from typing import Dict, Generator, List
+from typing import TYPE_CHECKING, Dict, Generator, List, Optional
 
 from ai_platform.data_access import get_all_symbols, get_recent_news, get_stock_history
 from ai_platform.llm import stream_response
+from ai_platform.permissions import filter_symbols
+
+if TYPE_CHECKING:
+    from ai_platform.auth import CurrentUser
 
 _SYSTEM = (
     "Bạn là trợ lý phân tích thị trường chứng khoán Việt Nam. "
@@ -54,8 +58,22 @@ def _build_context(symbols: List[str]) -> str:
     return "\n".join(parts)
 
 
-def stream_chat(message: str, history: List[Dict]) -> Generator[str, None, None]:
+def stream_chat(
+    message: str,
+    history: List[Dict],
+    user: Optional["CurrentUser"] = None,
+) -> Generator[str, None, None]:
     symbols = extract_symbols(message, _ensure_symbols())
+
+    if symbols:
+        allowed, blocked = filter_symbols(symbols, user)
+        if blocked:
+            who = user.username if user else "Bạn"
+            yield f"⚠️ {who} không có quyền truy vấn: **{', '.join(blocked)}**.\n"
+            if not allowed:
+                return
+            symbols = allowed
+
     context = _build_context(symbols)
     messages = list(history[-10:])
     user_content = (context + "\n\nCâu hỏi: " + message) if context else message
