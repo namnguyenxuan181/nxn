@@ -1,6 +1,6 @@
 """
-LLM abstraction — uses Anthropic if ANTHROPIC_API_KEY is set,
-otherwise falls back to Ollama running at OLLAMA_URL (default: localhost:11434).
+LLM abstraction — priority: DeepSeek → Anthropic → Ollama → error message.
+Set DEEPSEEK_API_KEY to use DeepSeek (recommended).
 """
 
 import json
@@ -9,13 +9,14 @@ from typing import Dict, Generator, List, Optional
 
 import requests
 
+_DEEPSEEK_MODEL  = os.environ.get("DEEPSEEK_MODEL", "deepseek-chat")
 _ANTHROPIC_MODEL = "claude-haiku-4-5-20251001"
-_OLLAMA_URL = os.environ.get("OLLAMA_URL", "http://localhost:11434")
-_OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "llama3.2")
+_OLLAMA_URL      = os.environ.get("OLLAMA_URL", "http://localhost:11434")
+_OLLAMA_MODEL    = os.environ.get("OLLAMA_MODEL", "llama3.2")
 
 _NO_LLM = (
     "Không có LLM khả dụng. "
-    "Hãy cài Ollama (ollama pull llama3.2) hoặc đặt ANTHROPIC_API_KEY."
+    "Hãy đặt DEEPSEEK_API_KEY hoặc cài Ollama (ollama pull llama3.2)."
 )
 
 
@@ -27,8 +28,10 @@ def _ollama_running() -> bool:
 
 
 def stream_response(system: str, messages: List[Dict]) -> Generator[str, None, None]:
-    """Stream text tokens. Anthropic → Ollama → error message."""
-    if os.environ.get("ANTHROPIC_API_KEY"):
+    """Stream text tokens. DeepSeek → Anthropic → Ollama → error message."""
+    if os.environ.get("DEEPSEEK_API_KEY"):
+        yield from _deepseek_stream(system, messages)
+    elif os.environ.get("ANTHROPIC_API_KEY"):
         yield from _anthropic_stream(system, messages)
     elif _ollama_running():
         yield from _ollama_stream(system, messages)
@@ -37,13 +40,61 @@ def stream_response(system: str, messages: List[Dict]) -> Generator[str, None, N
 
 
 def complete(messages: List[Dict]) -> str:
-    """Single-turn completion. Anthropic → Ollama → error message."""
-    if os.environ.get("ANTHROPIC_API_KEY"):
+    """Single-turn completion. DeepSeek → Anthropic → Ollama → error message."""
+    if os.environ.get("DEEPSEEK_API_KEY"):
+        return _deepseek_complete(messages)
+    elif os.environ.get("ANTHROPIC_API_KEY"):
         return _anthropic_complete(messages)
     elif _ollama_running():
         return _ollama_complete(messages)
     else:
         return _NO_LLM
+
+
+# ── DeepSeek (OpenAI-compatible API) ─────────────────────────────────────────
+
+def _deepseek_client():
+    from openai import OpenAI
+    return OpenAI(
+        api_key=os.environ["DEEPSEEK_API_KEY"],
+        base_url="https://api.deepseek.com",
+    )
+
+
+def _build_messages(system: Optional[str], messages: List[Dict]) -> List[Dict]:
+    if system:
+        return [{"role": "system", "content": system}] + list(messages)
+    return list(messages)
+
+
+def _deepseek_stream(system: str, messages: List[Dict]) -> Generator[str, None, None]:
+    try:
+        client = _deepseek_client()
+        stream = client.chat.completions.create(
+            model=_DEEPSEEK_MODEL,
+            messages=_build_messages(system, messages),
+            max_tokens=2048,
+            stream=True,
+        )
+        for chunk in stream:
+            delta = chunk.choices[0].delta.content
+            if delta:
+                yield delta
+    except Exception as e:
+        yield f"Lỗi DeepSeek: {e}"
+
+
+def _deepseek_complete(messages: List[Dict]) -> str:
+    try:
+        client = _deepseek_client()
+        resp = client.chat.completions.create(
+            model=_DEEPSEEK_MODEL,
+            messages=messages,
+            max_tokens=2048,
+        )
+        return resp.choices[0].message.content
+    except Exception as e:
+        return f"Lỗi DeepSeek: {e}"
 
 
 # ── Anthropic ─────────────────────────────────────────────────────────────────
@@ -53,7 +104,7 @@ def _anthropic_stream(system: str, messages: List[Dict]) -> Generator[str, None,
     client = anthropic.Anthropic()
     with client.messages.stream(
         model=_ANTHROPIC_MODEL,
-        max_tokens=1024,
+        max_tokens=2048,
         system=system,
         messages=messages,
     ) as stream:
@@ -66,7 +117,7 @@ def _anthropic_complete(messages: List[Dict]) -> str:
     client = anthropic.Anthropic()
     response = client.messages.create(
         model=_ANTHROPIC_MODEL,
-        max_tokens=1024,
+        max_tokens=2048,
         messages=messages,
     )
     return response.content[0].text
@@ -74,19 +125,13 @@ def _anthropic_complete(messages: List[Dict]) -> str:
 
 # ── Ollama ────────────────────────────────────────────────────────────────────
 
-def _with_system(system: Optional[str], messages: List[Dict]) -> List[Dict]:
-    if system:
-        return [{"role": "system", "content": system}] + list(messages)
-    return list(messages)
-
-
 def _ollama_stream(system: str, messages: List[Dict]) -> Generator[str, None, None]:
     try:
         resp = requests.post(
             f"{_OLLAMA_URL}/api/chat",
             json={
                 "model": _OLLAMA_MODEL,
-                "messages": _with_system(system, messages),
+                "messages": _build_messages(system, messages),
                 "stream": True,
             },
             stream=True,
@@ -111,7 +156,7 @@ def _ollama_complete(messages: List[Dict]) -> str:
             f"{_OLLAMA_URL}/api/chat",
             json={
                 "model": _OLLAMA_MODEL,
-                "messages": _with_system(None, messages),
+                "messages": _build_messages(None, messages),
                 "stream": False,
             },
             timeout=120,
