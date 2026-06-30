@@ -82,3 +82,46 @@ allow if {
     tpch_ops := {"SelectFromColumns", "FilterColumns"}
     tpch_ops[input.action.operation]
 }
+
+# ── Row-level filtering ─────────────────────────────────────────────────────────
+# Trả về SQL WHERE expression; empty string = không filter
+# Được gọi qua opa.policy.row-filters-uri
+
+user_row_filters := {
+    "alice": {"stock_prices": "symbol = 'SSI'"},
+    "bob":   {"stock_prices": "symbol = 'FPT'"},
+}
+
+default row_filters := []
+
+row_filters := [{"expression": filter, "identity": user}] if {
+    user  := input.context.identity.user
+    table := input.action.resource.table.tableName
+    filter := user_row_filters[user][table]
+}
+
+# ── Column masking ──────────────────────────────────────────────────────────────
+# Trả về SQL expression thay thế giá trị column; empty = không mask
+# Được gọi qua opa.policy.column-masks-uri
+
+sensitive_columns := {
+    "customer_info": {
+        "phone":   "'***-***-****'",
+        "id_card": "'***********'",
+        "email":   "regexp_replace(email, '(.).+(@.+)', '$1***$2')",
+    },
+}
+
+default column_masks := []
+
+column_masks := [] if {
+    has_role(input.context.identity.user, "admin")
+}
+
+column_masks := [{"expression": expr, "identity": user}] if {
+    user  := input.context.identity.user
+    not has_role(user, "admin")
+    table := input.action.resource.table.tableName
+    col   := input.action.resource.column.columnName
+    expr  := sensitive_columns[table][col]
+}
